@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>RosterView</title>
+<style>
+  :root{
+    --bg:#eef3f7; --panel:#ffffff; --ink:#12354f; --muted:#6a8095; --line:#dfe8f0;
+    --header:#0e3a5c; --header2:#12496f; --accent:#4aa3d6;
+    /* duty colours (user scheme) */
+    --c-layover:#e0475a; --c-layover-soft:#fdecee;
+    --c-standby:#f2b705; --c-standby-soft:#fdf4d6;
+    --c-off:#39a85a;     --c-off-soft:#e5f5ea;
+    --c-sim:#8a5cd1;     --c-sim-soft:#efe8fa;
+    --c-flight:#4aa3d6;  --c-flight-soft:#e4f1f9;
+    --c-ground:#ef8b3b;  --c-ground-soft:#fdeede;
+    --c-transport:#a9814e; --c-transport-soft:#f3ebe0;
+    --c-hotel:#5b7a90;   --c-hotel-soft:#e8eef2;
+    --shadow:0 1px 3px rgba(16,50,80,.08),0 6px 18px rgba(16,50,80,.06);
+  }
+  :root[data-theme="dark"], :root:not([data-theme="light"]){}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b1622; --panel:#12202e; --ink:#e7eef5; --muted:#8ba3b8; --line:#20344a;
+      --header:#0a2a42; --header2:#0e3a5c; --accent:#5bb2e4;
+      --c-layover-soft:#3a1c22; --c-standby-soft:#3a3110; --c-off-soft:#123020;
+      --c-sim-soft:#241a3a; --c-flight-soft:#0f2a3d;
+      --c-ground-soft:#3a2612; --c-transport-soft:#2f2718; --c-hotel-soft:#1a2833;
+      --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1622; --panel:#12202e; --ink:#e7eef5; --muted:#8ba3b8; --line:#20344a;
+    --header:#0a2a42; --header2:#0e3a5c; --accent:#5bb2e4;
+    --c-layover-soft:#3a1c22; --c-standby-soft:#3a3110; --c-off-soft:#123020;
+    --c-sim-soft:#241a3a; --c-flight-soft:#0f2a3d;
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink); font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:760px; margin:0 auto}
+
+  /* Header */
+  header{background:var(--header); color:#fff; padding:calc(env(safe-area-inset-top) + 12px) 16px 12px; position:sticky; top:0; z-index:20}
+  .h-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
+  .brand{display:flex; align-items:center; gap:9px; font-weight:700; letter-spacing:.2px}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#2b6f9e);display:grid;place-items:center;font-size:18px; flex:none}
+  .profile{display:flex; align-items:center; gap:10px; cursor:pointer; min-width:0}
+  .pinfo{min-width:0}
+  .pname{font-weight:800; font-size:16px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .pmeta{font-size:11.5px; color:#bcd6e8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .h-btns{display:flex; gap:8px}
+  .btn{background:rgba(255,255,255,.12); color:#fff; border:none; border-radius:10px; padding:8px 12px; font-size:14px; font-weight:600; cursor:pointer}
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--accent)}
+  .monthbar{display:flex; align-items:center; justify-content:space-between; margin-top:12px}
+  .monthbar h1{font-size:20px; margin:0; font-weight:700}
+  .nav{display:flex; align-items:center; gap:6px}
+  .nav button{background:rgba(255,255,255,.12); color:#fff; border:none; width:34px;height:34px; border-radius:9px; font-size:18px; cursor:pointer}
+  .today-btn{background:rgba(255,255,255,.12); color:#fff; border:none; border-radius:9px; padding:0 12px; height:34px; font-weight:600; cursor:pointer}
+
+  /* Tabs */
+  .tabs{display:flex; gap:6px; padding:10px 12px 0}
+  .tab{flex:1; text-align:center; padding:8px; border-radius:10px 10px 0 0; background:transparent; color:var(--muted); border:none; font-weight:600; font-size:14px; cursor:pointer}
+  .tab.active{background:var(--panel); color:var(--ink); box-shadow:0 -2px 6px rgba(16,50,80,.05)}
+
+  /* Legend */
+  .legend{display:flex; flex-wrap:wrap; gap:8px 14px; padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--line)}
+  .legend span{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:600}
+  .dot{width:12px;height:12px;border-radius:4px;display:inline-block}
+  .dot.layover{background:var(--c-layover)} .dot.standby{background:var(--c-standby)}
+  .dot.off{background:var(--c-off)} .dot.sim{background:var(--c-sim)} .dot.flight{background:var(--c-flight)}
+  .dot.ground{background:var(--c-ground)} .dot.transport{background:var(--c-transport)} .dot.hotel{background:var(--c-hotel)}
+
+  .content{padding:12px}
+
+  /* Monthly stats */
+  .stats{display:flex; gap:8px; margin-bottom:12px}
+  .stats:empty{display:none}
+  .stat{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:9px 6px; text-align:center; box-shadow:var(--shadow)}
+  .stat .sv{font-size:18px; font-weight:800; color:var(--ink)}
+  .stat .sv small{font-size:11px; font-weight:700; color:var(--muted)}
+  .stat .sl{font-size:9.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.3px; margin-top:2px}
+
+  /* Calendar — Emirates-style filled cells */
+  .cal{background:var(--panel); border-radius:14px; box-shadow:var(--shadow); overflow:hidden; padding-bottom:4px}
+  .dow{display:grid; grid-template-columns:repeat(7,1fr); background:var(--header2); color:#cfe4f2}
+  .dow div{padding:8px 0; text-align:center; font-size:11px; font-weight:700; letter-spacing:.5px}
+  .grid{display:grid; grid-template-columns:repeat(7,1fr); gap:0; padding:4px; background:var(--panel)}
+  .cell{position:relative; min-height:62px; border-radius:11px; border:2px solid var(--panel); padding:3px; cursor:pointer; background:var(--bg);
+        display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; overflow:hidden; transition:transform .05s}
+  .cell:active{transform:scale(.96)}
+  .cell.dim{opacity:.4}
+  .dnum{position:absolute; top:2px; left:6px; font-size:11px; font-weight:800; color:var(--muted)}
+  .cicon{font-size:20px; line-height:1; display:grid; place-items:center}
+  .cell.t-off .cicon{font-size:26px}
+  .cdest{font-size:10px; font-weight:800; letter-spacing:.3px; margin-top:2px; color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  /* filled cells (coloured by duty type) */
+  .cell.filled .dnum, .cell.filled .cdest{color:rgba(255,255,255,.92)}
+  .cell.filled .cicon{filter:brightness(0) invert(1)}
+  .cell.t-flight, .cell.t-layover{background:var(--c-layover)}
+  .cell.t-standby{background:var(--c-standby)}
+  .cell.t-off{background:var(--c-off)}
+  .cell.t-sim{background:var(--c-sim)}
+  .cell.t-ground{background:var(--c-ground)}
+  .cell.t-transport{background:var(--c-transport)}
+  .cell.t-hotel{background:var(--c-hotel)}
+  /* standby is light — use dark ink */
+  .cell.t-standby .dnum, .cell.t-standby .cdest{color:#5a4600}
+  .cell.t-standby .cicon{filter:none; color:#5a4600}
+  /* trip grouping: merge consecutive same-trip cells into one continuous block */
+  .cell.trip-mid, .cell.trip-end{border-top-left-radius:0; border-bottom-left-radius:0; border-left-color:var(--c-layover)}
+  .cell.trip-start, .cell.trip-mid{border-top-right-radius:0; border-bottom-right-radius:0; border-right-color:var(--c-layover)}
+  /* today + selection */
+  .cell.today{box-shadow:inset 0 0 0 2px var(--accent)}
+  .cell.sel{box-shadow:inset 0 0 0 2px var(--ink); z-index:3}
+  /* change indicator */
+  .cdot{position:absolute; top:4px; right:5px; width:9px; height:9px; border-radius:50%; background:#ff3b30; box-shadow:0 0 0 1.5px #fff; z-index:2}
+  .cicon{color:var(--muted)}
+
+  /* Detail panel */
+  .detail{margin-top:12px}
+  .card{background:var(--panel); border-radius:14px; box-shadow:var(--shadow); overflow:hidden; margin-bottom:12px}
+  .card .band{padding:12px 14px; display:flex; align-items:center; justify-content:space-between; background:var(--panel); border-bottom:1px solid var(--line); border-left:5px solid var(--c-flight)}
+  .band .t{font-weight:800; font-size:16px; color:var(--ink)}
+  .band .s{font-size:12.5px; color:var(--muted)}
+  .band.layover{border-left-color:var(--c-layover); background:var(--c-layover-soft)}
+  .band.standby{border-left-color:var(--c-standby); background:var(--c-standby-soft)}
+  .band.off{border-left-color:var(--c-off); background:var(--c-off-soft)}
+  .band.sim{border-left-color:var(--c-sim); background:var(--c-sim-soft)}
+  .band.flight{border-left-color:var(--c-flight); background:var(--c-flight-soft)}
+  .band.ground{border-left-color:var(--c-ground); background:var(--c-ground-soft)}
+  .band.transport{border-left-color:var(--c-transport); background:var(--c-transport-soft)}
+  .band.hotel{border-left-color:var(--c-hotel); background:var(--c-hotel-soft)}
+  .body{padding:12px 14px}
+  .leg{padding:12px 0}
+  .leg+.leg-sep{border-top:1px dashed var(--line)}
+  .route{display:flex; align-items:stretch; gap:10px}
+  .ep{flex:1; min-width:0}
+  .ep .code{font-size:22px; font-weight:800; letter-spacing:.5px}
+  .ep .city{font-size:12px; color:var(--muted)}
+  .eplbl{font-size:9.5px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:var(--muted); margin-top:6px}
+  .ep .time{font-size:20px; font-weight:800; margin-top:1px; line-height:1.05}
+  .ep .subt{font-size:11.5px; color:var(--muted); font-weight:600; margin-top:1px}
+  .ep .tz{font-size:11px; color:var(--muted); margin-top:3px}
+  .ep.arr{text-align:right}
+  .mid{display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--muted); min-width:92px; padding-top:16px}
+  .fno-mid{font-size:15px; font-weight:800; color:var(--accent); letter-spacing:.3px; margin-bottom:5px; white-space:nowrap}
+  .mid .line{width:100%; height:2px; background:var(--line); position:relative}
+  .mid .line::after{content:"✈"; position:absolute; left:50%; top:-9px; transform:translateX(-50%); color:var(--accent); font-size:14px; background:var(--panel); padding:0 4px}
+  .mid .dur{font-size:11.5px; margin-top:7px; font-weight:700; color:var(--ink)}
+  .mid .dur span{color:var(--muted); font-weight:600}
+  .layoverbar{background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 12px; margin:6px 0; display:flex; align-items:center; gap:10px}
+  .layoverbar .ic{width:24px;height:24px;border-radius:7px;background:var(--c-hotel);color:#fff;display:grid;place-items:center;font-size:13px}
+  .layoverbar .txt b{color:var(--ink)}
+  .layoverbar .txt{font-size:13px}
+  .meta{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:8px; font-size:12.5px; color:var(--muted)}
+  .meta b{color:var(--ink)}
+  .crew{margin-top:8px; font-size:12.5px; padding:7px 10px; background:var(--bg); border-radius:9px; border:1px solid var(--line)}
+  .crewrole{font-size:10px; font-weight:800; letter-spacing:.5px; color:var(--muted); text-transform:uppercase; margin-right:4px}
+  .crewtag{font-size:10px; font-weight:700; color:var(--accent); background:var(--c-flight-soft); padding:1px 6px; border-radius:20px}
+  .crewtag.capt{color:var(--c-layover); background:var(--c-layover-soft)}
+  .note{margin-top:8px; font-size:12.5px; color:var(--muted); font-style:italic}
+  .row-actions{display:flex; gap:8px; padding:0 14px 12px}
+  .mini{background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:7px 12px; font-size:13px; font-weight:600; cursor:pointer}
+  .mini.danger{color:#c0392b}
+
+  .empty{padding:26px 14px; text-align:center; color:var(--muted)}
+
+  /* List view — Emirates-style grouped cards */
+  .llist{display:flex; flex-direction:column; gap:10px}
+  .lcard{display:flex; align-items:center; gap:14px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:13px 14px; box-shadow:var(--shadow); cursor:pointer; transition:transform .05s}
+  .lcard:active{transform:scale(.99)}
+  .lcirc{width:44px; height:44px; border-radius:50%; display:grid; place-items:center; font-size:19px; color:#fff; flex:none}
+  .lcirc.t-flight, .lcirc.t-layover{background:var(--c-layover)}
+  .lcirc.t-standby{background:var(--c-standby); color:#5a4600}
+  .lcirc.t-off{background:var(--c-off)} .lcirc.t-sim{background:var(--c-sim)}
+  .lcirc.t-ground{background:var(--c-ground)} .lcirc.t-transport{background:var(--c-transport)} .lcirc.t-hotel{background:var(--c-hotel)}
+  .lmain{flex:1; min-width:0}
+  .ltitle{font-weight:800; font-size:15.5px; display:flex; align-items:center; gap:7px}
+  .ltitle .cdot{position:static; box-shadow:none}
+  .lsub{font-size:13px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .lsub.flt{color:var(--accent); font-weight:700}
+  .lsub .fnos{color:var(--accent); font-weight:800}
+  .lsub .ldest{color:var(--c-layover); font-weight:800}
+  .lchev{color:var(--muted); font-size:22px; flex:none}
+
+  /* Modal */
+  .modal{position:fixed; inset:0; background:rgba(8,20,32,.55); display:none; align-items:flex-end; justify-content:center; z-index:50}
+  .modal.open{display:flex}
+  .sheet{background:var(--panel); width:100%; max-width:760px; border-radius:16px 16px 0 0; max-height:92vh; overflow:auto; padding:16px 16px calc(env(safe-area-inset-bottom) + 20px)}
+  .sheet h2{margin:2px 0 12px; font-size:18px}
+  .mtabs{display:flex; gap:6px; margin-bottom:12px}
+  .mtab{flex:1; padding:9px; border-radius:9px; border:1px solid var(--line); background:var(--bg); font-weight:600; font-size:13px; cursor:pointer; color:var(--muted)}
+  .mtab.active{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .field{margin-bottom:10px}
+  .field label{display:block; font-size:12px; font-weight:700; color:var(--muted); margin-bottom:4px}
+  .field input, .field select, .field textarea{width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit}
+  textarea{min-height:150px; resize:vertical; font-family:ui-monospace,Menlo,monospace; font-size:13px}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .hint{font-size:12.5px; color:var(--muted); line-height:1.5; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:12px}
+  .sheet .actions{display:flex; gap:8px; margin-top:6px}
+  .sheet .actions .btn{flex:1; text-align:center; padding:12px}
+  .btn.ghost{background:var(--bg); color:var(--ink); border:1px solid var(--line)}
+  .close-x{position:absolute; }
+  .drop{border:2px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); font-size:13px; display:block; cursor:pointer}
+  #compareModal{align-items:center}
+  .cmp{display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center; margin-bottom:14px}
+  .cmp .col{border:1px solid var(--line); border-radius:12px; padding:12px; text-align:center}
+  .cmp .col.was{background:var(--bg)} .cmp .col.now{background:var(--c-layover-soft); border-color:rgba(224,71,90,.4)}
+  .cmp .col .lbl{font-size:10px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+  .cmp .col .big{font-size:19px; font-weight:800}
+  .cmp .col.now .big{color:var(--c-layover)}
+  .cmp .arrow{color:var(--muted); font-size:18px}
+  .cmp-row{display:flex; justify-content:space-between; padding:8px 2px; border-bottom:1px solid var(--line); font-size:14px}
+  .cmp-row:last-child{border-bottom:none}
+  .cmp-row .k{color:var(--muted)} .cmp-row .v{font-weight:700}
+  .cmp-row .v.chg{color:var(--c-layover)}
+  .cmp-row .old{color:var(--muted); text-decoration:line-through; font-weight:400; margin-right:6px; font-size:12.5px}
+  .changed-badge{display:inline-flex; align-items:center; gap:5px; background:var(--c-layover-soft); color:var(--c-layover); font-size:11px; font-weight:800; padding:3px 9px; border-radius:20px}
+  .changed-badge::before{content:""; width:7px;height:7px;border-radius:50%;background:var(--c-layover)}
+  .proofstamp{display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; background:var(--header); color:#cfe4f2; font-size:11.5px; font-weight:600; padding:8px 12px}
+  .proofimg{width:100%; display:block; border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="h-top">
+      <div class="profile" id="profileBox" title="Tap to edit">
+        <span class="logo">🛫</span>
+        <div class="pinfo">
+          <div class="pname" id="pName">Alen Sukaj</div>
+          <div class="pmeta"><span id="pStaff">#55491</span> · <span id="pRank">First Officer — Senior</span></div>
+        </div>
+      </div>
+      <div class="h-btns">
+        <button class="btn" id="themeBtn" title="Theme">◐</button>
+        <button class="btn" id="shareBtn" title="Share with family">⤴</button>
+        <button class="btn primary" id="importBtn">＋</button>
+      </div>
+    </div>
+    <div class="monthbar">
+      <div class="nav"><button id="prevM">‹</button></div>
+      <h1 id="monthTitle">August 2026</h1>
+      <div class="nav">
+        <button id="todayBtn" class="today-btn">Today</button>
+        <button id="nextM">›</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-view="month">Month</button>
+    <button class="tab" data-view="list">List</button>
+    <button class="tab" data-view="trips">Trips</button>
+    <button class="tab" data-view="proof">Proof</button>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot layover"></i>Flight / Layover</span>
+    <span><i class="dot standby"></i>Standby</span>
+    <span><i class="dot off"></i>Off</span>
+    <span><i class="dot sim"></i>Simulator</span>
+    <span><i class="dot ground"></i>Ground/Training</span>
+    <span><i class="dot transport"></i>Transport/Hotel</span>
+  </div>
+
+  <div class="content">
+    <div class="stats" id="stats"></div>
+    <div id="calWrap"></div>
+    <div class="detail" id="detail"></div>
+  </div>
+</div>
+
+<!-- Share modal -->
+<div class="modal" id="shareModal">
+  <div class="sheet">
+    <h2>Share with family</h2>
+    <div class="hint">Give family a clean, read-only view of where you are — no login, opens in any browser. Everything is generated on your device.</div>
+    <button class="btn primary" id="shareHtml" style="width:100%;padding:14px;margin-bottom:10px">📄 Save family view (web page)</button>
+    <div class="hint" style="margin-top:0">A single page showing where you are now, your trips and days off for <b id="shareMonth">this month</b>. Text or AirDrop it — they just tap to open.</div>
+    <button class="btn ghost" id="shareIcs" style="width:100%;padding:14px;margin-bottom:10px">📅 Export calendar (.ics)</button>
+    <div class="hint" style="margin-top:0">Adds your roster to their phone calendar (Apple/Google). Import once, appears alongside their events.</div>
+    <div class="actions"><button class="btn ghost" onclick="closeShare()" style="flex:1;padding:12px">Close</button></div>
+  </div>
+</div>
+
+<!-- Compare (change) modal -->
+<div class="modal" id="compareModal">
+  <div class="sheet" style="max-width:520px; border-radius:16px; align-self:center; margin:auto">
+    <h2>What changed</h2>
+    <div id="compareBody"></div>
+    <div class="actions"><button class="btn primary" onclick="closeCompare()" style="flex:1;padding:12px">Got it</button></div>
+  </div>
+</div>
+
+<!-- Import modal -->
+<div class="modal" id="modal">
+  <div class="sheet">
+    <h2 id="sheetTitle">Import roster</h2>
+    <div class="mtabs">
+      <button class="mtab active" data-mtab="file">Upload file</button>
+      <button class="mtab" data-mtab="paste">Paste</button>
+      <button class="mtab" data-mtab="manual">Add manually</button>
+    </div>
+
+    <div class="mpane" data-pane="file">
+      <div class="hint">
+        Import an <b>.ics</b> calendar file (the no-password way — export it once from the ANA portal or your crew app), or a <b>roster screenshot</b>. Screenshots are auto-saved to the <b>Proof</b> tab with a timestamp as your audit trail.
+      </div>
+      <label class="drop" for="fileInput">📅 / 📸 Tap to choose a file or screenshot<input id="fileInput" type="file" accept=".ics,.csv,.txt,image/*" hidden></label>
+      <p id="fileMsg" class="hint" style="display:none"></p>
+    </div>
+
+    <div class="mpane" data-pane="paste" hidden>
+      <div class="hint">Paste roster lines. Best-effort parser reads lines like:<br>
+        <code>2026-08-18 NH0886 KUL-HND 14:15 22:15</code> &nbsp;•&nbsp; <code>2026-08-30 SBY 13:30 19:30</code> &nbsp;•&nbsp; <code>2026-08-05 OFF</code></div>
+      <textarea id="pasteBox" placeholder="2026-08-18 NH0886 KUL-HND 14:15 22:15&#10;2026-08-19 NH0879 HND-SYD 22:45 09:25&#10;2026-08-05 OFF"></textarea>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn primary" id="pasteGo">Parse & add</button>
+      </div>
+    </div>
+
+    <div class="mpane" data-pane="manual" hidden>
+      <div class="field"><label>Date</label><input type="date" id="m_date"></div>
+      <div class="field"><label>Type</label>
+        <select id="m_type">
+          <option value="flight">Flight leg (layovers group automatically)</option>
+          <option value="standby">Standby</option>
+          <option value="off">Off / Day off</option>
+          <option value="sim">Simulator</option>
+          <option value="ground">Ground / Training</option>
+          <option value="transport">Transport (deadhead/taxi/bus)</option>
+          <option value="hotel">Hotel</option>
+        </select>
+      </div>
+      <div id="m_flightFields">
+        <div class="grid2">
+          <div class="field"><label>Flight #</label><input id="m_no" placeholder="NH0886"></div>
+          <div class="field"><label>Trip label</label><input id="m_trip" placeholder="e.g. SYD layover"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>From</label><input id="m_from" placeholder="KUL" maxlength="3"></div>
+          <div class="field"><label>To</label><input id="m_to" placeholder="HND" maxlength="3"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Dep (local)</label><input id="m_dep" placeholder="14:15"></div>
+          <div class="field"><label>Arr (local)</label><input id="m_arr" placeholder="22:15"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Arrival date (if overnight)</label><input type="date" id="m_arrdate"></div>
+          <div class="field"><label>Captain (crew)</label><input id="m_capt" placeholder="Captain name"></div>
+        </div>
+      </div>
+      <div id="m_sbyFields" hidden>
+        <div class="grid2">
+          <div class="field"><label>Start</label><input id="m_start" placeholder="13:30"></div>
+          <div class="field"><label>End</label><input id="m_end" placeholder="19:30"></div>
+        </div>
+        <div class="field"><label>Label</label><input id="m_label" placeholder="Standby 3 / SB3"></div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn primary" id="manualGo">Add to roster</button>
+      </div>
+      <p style="text-align:center;margin-top:14px"><button class="mini danger" id="resetAll">Reset to sample roster</button></p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Airport timezone table (UTC offset hours, standard) ---------- */
+const AIRPORTS = {
+  HND:{city:"Tokyo",tz:9}, NRT:{city:"Tokyo",tz:9}, KUL:{city:"Kuala Lumpur",tz:8},
+  SYD:{city:"Sydney",tz:10}, MEL:{city:"Melbourne",tz:10}, BKK:{city:"Bangkok",tz:7},
+  SIN:{city:"Singapore",tz:8}, HKG:{city:"Hong Kong",tz:8}, TPE:{city:"Taipei",tz:8},
+  ICN:{city:"Seoul",tz:9}, PVG:{city:"Shanghai",tz:8}, DEL:{city:"Delhi",tz:5.5},
+  BOM:{city:"Mumbai",tz:5.5}, LHR:{city:"London",tz:0}, LAX:{city:"Los Angeles",tz:-7},
+  SFO:{city:"San Francisco",tz:-7}, JFK:{city:"New York",tz:-4}, HNL:{city:"Honolulu",tz:-10}
+};
+const apCity = c => (AIRPORTS[c]?.city) || c;
+const apTz   = c => (AIRPORTS[c]?.tz ?? 0);
+const tzLabel= c => { const t=apTz(c); return "UTC"+(t>=0?"+":"")+ (Number.isInteger(t)?t:t); };
+
+/* ---------- AJX / ANA roster code dictionary (from Alen's crew app) ---------- */
+/* type drives colour: flight, standby, off, sim, ground, transport, hotel */
+const CODES = {
+  // Day off (green)
+  OFF1:{type:"off",label:"Day Off — Japan"}, OFF2:{type:"off",label:"Day Off — Home"},
+  OFF5:{type:"off",label:"Commuting Home"}, BD1:{type:"off",label:"Day Off — Japan"},
+  BD2:{type:"off",label:"Day Off — Other"}, BDC:{type:"off",label:"Commuting Home"},
+  ABS:{type:"off",label:"Absent"},
+  // Standby (yellow)
+  SB1:{type:"standby",label:"Standby 1"}, SB2:{type:"standby",label:"Standby 2"},
+  SB3:{type:"standby",label:"Standby 3"}, SB4:{type:"standby",label:"Standby 4"},
+  // Simulator (purple)
+  FBS2:{type:"sim",label:"Fixed Base Sim 2"}, FBS3:{type:"sim",label:"Fixed Base Sim 3"},
+  // Ground duty / training (orange)
+  GS:{type:"ground",label:"Ground School"}, GS1:{type:"ground",label:"Ground School 1"},
+  GS2:{type:"ground",label:"Ground School 2"}, GS3:{type:"ground",label:"Ground School 3"},
+  GC:{type:"ground",label:"Oral Exam"}, CRM:{type:"ground",label:"Crew Resource Management"},
+  EMG:{type:"ground",label:"Emergency Training — Ground School"}, PF1:{type:"ground",label:"Medical"},
+  CKAL:{type:"ground",label:"Alcohol Check"}, ACLD:{type:"ground",label:"Cold Weather Ops CBT"},
+  AET8:{type:"ground",label:"B787 ETOPS CBT"}, ARAU:{type:"ground",label:"Ground School Australia"},
+  ARNP:{type:"ground",label:"Ground School RNP"}, ASMS:{type:"ground",label:"Alcohol Education"},
+  ASYD:{type:"ground",label:"Airport Ground School Sydney"}, ATSA:{type:"ground",label:"Airport Ground School Taipei Songshan"},
+  // Transport (tan)
+  D1:{type:"transport",label:"Deadheading Flight"}, TA:{type:"transport",label:"Taxi"},
+  CR:{type:"transport",label:"Airport Limousine Bus"},
+  // Hotel (tan)
+  KJAL:{type:"hotel",label:"Jal City Hotel Haneda"}, KEXL:{type:"hotel",label:"Excel Hotel Haneda"},
+  HR:{type:"hotel",label:"Hotel Rest"}
+};
+function resolveCode(raw){
+  if(!raw) return null;
+  const c=raw.toUpperCase().trim();
+  if(CODES[c]) return {code:c, ...CODES[c]};
+  if(/^NH\d{2,4}$/.test(c))  return {code:c, type:"flight", label:c};
+  if(/^S\d{3,4}$/.test(c))   return {code:c, type:"sim", label:"Simulator "+c};
+  if(/^FBS\d*$/.test(c))     return {code:c, type:"sim", label:"Fixed Base Sim"};
+  if(/^SB\d*$/.test(c))      return {code:c, type:"standby", label:"Standby"+(c.slice(2)?" "+c.slice(2):"")};
+  if(/^(OFF\d*|BD\w*|ABS|VAC|LVE)$/.test(c)) return {code:c, type:"off", label:"Day off"};
+  if(/^(GS\d*|CRM|EMG|PF\d|CK\w+|A[CERST]\w+|GC)$/.test(c)) return {code:c, type:"ground", label:"Ground duty"};
+  if(/^(D\d+|TA|CR|BUS)$/.test(c)) return {code:c, type:"transport", label:"Transport"};
+  if(/^(K\w{2,}|HR)$/.test(c)) return {code:c, type:"hotel", label:"Hotel"};
+  return null;
+}
+const TYPE_LABEL={flight:"Flight",layover:"Layover",standby:"Standby",off:"Day off",sim:"Simulator",ground:"Ground duty",transport:"Transport",hotel:"Hotel"};
+/* duty icons — house is a custom rounded cottage (own design), plane/others are glyphs */
+const HOUSE_SVG='<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M12 3.2 3.4 10.2c-.3.25-.4.6-.4.95V20a1 1 0 0 0 1 1h4.2a1 1 0 0 0 1-1v-3.4a2.8 2.8 0 0 1 5.6 0V20a1 1 0 0 0 1 1H20a1 1 0 0 0 1-1v-8.85c0-.35-.15-.7-.4-.95L12 3.2Z"/></svg>';
+function dutyIcon(t){
+  if(t==="off") return HOUSE_SVG;
+  return ({flight:"✈",layover:"✈",standby:"◔",sim:"▦",ground:"▤",transport:"⇆",hotel:"◈"})[t]||"•";
+}
+
+/* ---------- Seed roster (from your Aug 2026 screenshots) ---------- */
+function seed(){
+  const items=[];
+  const off=(d)=>({id:uid(),date:`2026-08-${String(d).padStart(2,"0")}`,type:"off"});
+  for(let d=1;d<=15;d++) items.push(off(d));
+  items.push(off(22),off(23),off(29));
+  // Aug 16 + 24..28 + 31: flights shown blue but details not visible in screenshots → editable placeholders
+  ["16","24","25","26","27","28","31"].forEach(d=>items.push({id:uid(),date:`2026-08-${d}`,type:"flight",placeholder:true}));
+  // Standby Aug 30 (SB3 13:30-19:30)
+  items.push({id:uid(),date:"2026-08-30",type:"standby",label:"Standby 3 (SB3)",start:"13:30",end:"19:30"});
+  // Trip 1 — KUL layover
+  items.push({id:uid(),type:"flight",trip:"KUL layover",no:"NH0885",from:"HND",to:"KUL",date:"2026-08-17",dep:"06:00",arr:"12:55",note:"Called from SB3 standby (00:30)"});
+  items.push({id:uid(),type:"flight",trip:"KUL layover",no:"NH0886",from:"KUL",to:"HND",date:"2026-08-18",dep:"14:15",arr:"22:15",changed:true,prev:{dep:"13:30",arr:"21:30",note:"Retimed +45 min"}});
+  // Trip 2 — SYD layover (overnight outbound)
+  items.push({id:uid(),type:"flight",trip:"SYD layover",no:"NH0879",from:"HND",to:"SYD",date:"2026-08-19",ci:"21:15",dep:"22:45",arr:"09:25",arrdate:"2026-08-20"});
+  items.push({id:uid(),type:"flight",trip:"SYD layover",no:"NH0890",from:"SYD",to:"HND",date:"2026-08-21",dep:"11:45",arr:"20:35"});
+  return items;
+}
+function uid(){return Math.random().toString(36).slice(2,9)}
+
+/* ---------- Profile & proof ---------- */
+function loadProfile(){
+  try{const p=JSON.parse(lsGet("rosterview_profile"));if(p)return p;}catch(e){}
+  return {name:"Alen Sukaj", staff:"55491", rank:"First Officer — Senior"};
+}
+let profile = loadProfile();
+function saveProfile(){ lsSet("rosterview_profile", JSON.stringify(profile)); }
+function loadProof(){ try{const p=JSON.parse(lsGet("rosterview_proof"));if(p)return p;}catch(e){} return []; }
+let proof = loadProof();
+function saveProof(){ lsSet("rosterview_proof", JSON.stringify(proof)); }
+
+/* ---------- State ---------- */
+let roster = load();
+let view = "month";
+let cursor = new Date(2026,7,1);      // August 2026
+let selectedKey = null;               // date string or trip:name
+const today = "2026-08-17";           // per app "today"
+
+let _mem={};                          // in-memory fallback when localStorage is unavailable
+function lsGet(k){ try{return localStorage.getItem(k);}catch(e){return _mem[k]??null;} }
+function lsSet(k,v){ try{localStorage.setItem(k,v);}catch(e){_mem[k]=v;} }
+function load(){
+  try{const r=JSON.parse(lsGet("rosterview_v1"));if(r&&r.length)return r;}catch(e){}
+  const s=seed(); save(s); return s;
+}
+function save(r){ lsSet("rosterview_v1", JSON.stringify(r||roster)); }
+
+/* ---------- Time helpers ---------- */
+function iso(dt){ return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`; }
+function toUTC(dateStr,hhmm,tz){
+  const [y,m,d]=dateStr.split("-").map(Number);
+  const [h,mi]=hhmm.split(":").map(Number);
+  return Date.UTC(y,m-1,d,h,mi) - tz*3600*1000;
+}
+function fmtDur(ms){
+  if(ms<0) ms+=24*3600*1000;
+  const mins=Math.round(ms/60000); const h=Math.floor(mins/60), m=mins%60;
+  return `${h}h ${String(m).padStart(2,"0")}m`;
+}
+function blockTime(leg){
+  const dd=leg.date, ad=leg.arrdate||leg.date;
+  const dep=toUTC(dd,leg.dep,apTz(leg.from));
+  const arr=toUTC(ad,leg.arr,apTz(leg.to));
+  return fmtDur(arr-dep);
+}
+function prettyDate(ds){
+  const [y,m,d]=ds.split("-").map(Number);
+  return new Date(y,m-1,d).toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
+}
+
+/* ---------- Trip grouping ---------- */
+function trips(){
+  const map={};
+  roster.filter(i=>i.type==="flight"&&i.trip).forEach(i=>{(map[i.trip]=map[i.trip]||[]).push(i)});
+  Object.values(map).forEach(a=>a.sort((x,y)=>(x.date+ (x.dep||"")).localeCompare(y.date+(y.dep||"")) ));
+  return map;
+}
+function tripDates(legs){ // every date from first departure to last arrival (contiguous block)
+  const set=new Set();
+  const all=legs.flatMap(l=>[l.date, l.arrdate||l.date]).sort();
+  const [y,m,d]=all[0].split("-").map(Number); const cur=new Date(y,m-1,d);
+  const [ey,em,ed]=all[all.length-1].split("-").map(Number); const endD=new Date(ey,em-1,ed);
+  while(cur<=endD){ set.add(iso(cur)); cur.setDate(cur.getDate()+1);}
+  return set;
+}
+function dayInfo(ds){
+  // returns {type, ...} deciding the cell colour for a date
+  const T=trips();
+  for(const [name,legs] of Object.entries(T)){
+    if(tripDates(legs).has(ds)) return {type:legs.length>1?"layover":"flight", trip:name, legs};
+  }
+  const it=roster.find(i=>i.date===ds && i.type!=="flight");
+  if(it) return {type:it.type, item:it};
+  const f=roster.find(i=>i.date===ds && i.type==="flight" && !i.trip);
+  if(f) return {type:"flight", item:f};
+  return null;
+}
+
+/* ---------- Monthly stats ---------- */
+function fmtHM(min){ const h=Math.floor(min/60), m=min%60; return `${h}<small>h</small> ${String(m).padStart(2,"0")}<small>m</small>`; }
+function monthStats(){
+  const y=cursor.getFullYear(), m=cursor.getMonth();
+  const inMonth=ds=>{const p=ds.split("-").map(Number);return p[0]===y&&p[1]===m+1;};
+  let blockMin=0, flights=0, off=0, sby=0, other=0;
+  roster.forEach(it=>{
+    if(!it.date||!inMonth(it.date)) return;
+    if(it.type==="flight"){ flights++; if(it.dep&&it.arr){ let d=toUTC(it.arrdate||it.date,it.arr,apTz(it.to))-toUTC(it.date,it.dep,apTz(it.from)); if(d<0)d+=864e5; blockMin+=Math.round(d/60000); } }
+    else if(it.type==="off") off++;
+    else if(it.type==="standby") sby++;
+    else other++;
+  });
+  return {blockMin,flights,off,sby,other};
+}
+function renderStats(){
+  const el=document.getElementById("stats");
+  if(view!=="month"&&view!=="list"){ el.innerHTML=""; return; }
+  const s=monthStats();
+  el.innerHTML=`
+    <div class="stat"><div class="sv">${fmtHM(s.blockMin)}</div><div class="sl">Block hrs</div></div>
+    <div class="stat"><div class="sv">${s.flights}</div><div class="sl">Flights</div></div>
+    <div class="stat"><div class="sv">${s.off}</div><div class="sl">Days off</div></div>
+    <div class="stat"><div class="sv">${s.sby}</div><div class="sl">Standby</div></div>`;
+}
+
+/* ---------- Rendering: calendar ---------- */
+function renderMonth(){
+  const y=cursor.getFullYear(), m=cursor.getMonth();
+  document.getElementById("monthTitle").textContent=cursor.toLocaleDateString(undefined,{month:"long",year:"numeric"});
+  const first=new Date(y,m,1); const startDow=first.getDay();
+  const start=new Date(y,m,1-startDow);
+  let html=`<div class="cal"><div class="dow">${["SUN","MON","TUE","WED","THU","FRI","SAT"].map(d=>`<div>${d}</div>`).join("")}</div><div class="grid">`;
+  for(let i=0;i<42;i++){
+    const dt=new Date(start); dt.setDate(start.getDate()+i);
+    const ds=iso(dt);
+    const inMonth=dt.getMonth()===m;
+    const info=dayInfo(ds);
+    let cls="cell"+(inMonth?"":" dim")+(ds===today?" today":"")+(selectedKey===ds||(info&&info.trip&&selectedKey==="trip:"+info.trip)?" sel":"");
+    let inner="", changed=false;
+    if(info){
+      cls+=" filled t-"+info.type;
+      if(info.trip){
+        const td=[...tripDates(info.legs)].sort();
+        const idx=td.indexOf(ds);
+        cls+=" "+(idx===0?"trip-start":idx===td.length-1?"trip-end":"trip-mid");
+        const leg=info.legs.find(l=>l.date===ds)||info.legs.find(l=>(l.arrdate||l.date)===ds);
+        const dest=leg?leg.to:"";
+        inner=`<span class="cicon">✈</span><span class="cdest">${dest||""}</span>`;
+        changed=!!(leg&&leg.changed&&leg.date===ds);
+      } else {
+        const it=info.item||{};
+        changed=!!it.changed;
+        if(info.type==="flight"){ inner=`<span class="cicon">✈</span><span class="cdest">${it.to||it.no||""}</span>`; }
+        else {
+          const short={off:it.code||"OFF",standby:it.code||"SB",sim:"SIM",ground:it.code||"GS",transport:it.code||"TR",hotel:it.code||"HTL"}[info.type]||"";
+          inner=`<span class="cicon">${dutyIcon(info.type)}</span><span class="cdest">${short}</span>`;
+        }
+      }
+    }
+    html+=`<div class="${cls}" data-date="${ds}"><span class="dnum">${dt.getDate()}</span>${changed?'<span class="cdot"></span>':""}${inner}</div>`;
+  }
+  html+="</div></div>";
+  document.getElementById("calWrap").innerHTML=html;
+  document.querySelectorAll(".cell").forEach(c=>c.onclick=()=>selectDate(c.dataset.date));
+}
+
+function selectDate(ds){
+  const info=dayInfo(ds);
+  selectedKey = (info&&info.trip)?("trip:"+info.trip):ds;
+  renderMonth(); renderDetail(ds,info);
+  document.getElementById("detail").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+/* ---------- Rendering: detail ---------- */
+function renderDetail(ds,info){
+  const el=document.getElementById("detail");
+  if(!info){ el.innerHTML=`<div class="card"><div class="empty">Nothing rostered on ${prettyDate(ds)}.<br><button class="mini" onclick="openModal('manual','${ds}')" style="margin-top:10px">＋ Add duty</button></div></div>`; return; }
+  if(info.trip){ el.innerHTML=tripCard(info.trip,info.legs); return; }
+  el.innerHTML=simpleCard(info.item);
+}
+
+function tripCard(name,legs){
+  const single=legs.length===1;
+  const bandClass=single?"flight":"layover";
+  const title=single?"Flight":("Layover — "+apCity(legs.find(l=>AIRPORTS[l.to])?.to || legs[0].to));
+  // destination city = the "to" of first outbound (not base). Use first leg's to.
+  const dest=legs[0].to;
+  let html=`<div class="card"><div class="band ${bandClass}"><div><div class="t">${single?"Flight":("Layover · "+apCity(dest)+" ("+dest+")")}</div><div class="s">${prettyDate(legs[0].date)} → ${prettyDate(legs[legs.length-1].arrdate||legs[legs.length-1].date)} · ${name}</div></div><div class="s">${legs.length} leg${legs.length>1?"s":""}</div></div><div class="body">`;
+  legs.forEach((leg,i)=>{
+    html+=legRow(leg);
+    if(i<legs.length-1){
+      // layover at leg.to (== next leg.from) between arr(leg) and dep(next)
+      const nxt=legs[i+1];
+      if(leg.to===nxt.from){
+        const arrMs=toUTC(leg.arrdate||leg.date,leg.arr,apTz(leg.to));
+        const depMs=toUTC(nxt.date,nxt.dep,apTz(nxt.from));
+        html+=`<div class="layoverbar"><span class="ic">🛏</span><div class="txt">Layover at <b>${apCity(leg.to)} (${leg.to})</b> — <b>${fmtDur(depMs-arrMs)}</b><br><span style="color:var(--muted)">from ${leg.arr} ${prettyDate(leg.arrdate||leg.date)} to ${nxt.dep} ${prettyDate(nxt.date)} local</span></div></div>`;
+      }
+    }
+  });
+  html+=`</div><div class="row-actions"><button class="mini" onclick="openModal('manual')">＋ Add</button><button class="mini danger" onclick="deleteTrip('${name}')">Delete trip</button></div></div>`;
+  return html;
+}
+
+function legRow(leg){
+  const ci = leg.ci?`<span>Check-in <b>${leg.ci}</b></span>`:"";
+  const dur=(leg.dep&&leg.arr)?blockTime(leg):"";
+  const depMain = leg.ci || leg.dep || "—";
+  const depLabel = leg.ci ? "Duty On" : "Departure";
+  const depSub = leg.ci && leg.dep ? `Dep ${leg.dep}` : "";
+  return `<div class="leg leg-sep">
+    <div class="route">
+      <div class="ep dep">
+        <div class="code">${leg.from}</div><div class="city">${apCity(leg.from)}</div>
+        <div class="eplbl">${depLabel}</div><div class="time">${depMain}</div>
+        ${depSub?`<div class="subt">${depSub}</div>`:""}
+        <div class="tz">${tzLabel(leg.from)} · ${prettyDate(leg.date)}</div>
+      </div>
+      <div class="mid">
+        <div class="fno-mid">${leg.no||"FLT"}</div>
+        <div class="line"></div>
+        ${dur?`<div class="dur">${dur} <span>block</span></div>`:""}
+      </div>
+      <div class="ep arr">
+        <div class="code">${leg.to}</div><div class="city">${apCity(leg.to)}</div>
+        <div class="eplbl">Arrival</div><div class="time">${leg.arr||"—"}</div>
+        <div class="tz">${tzLabel(leg.to)} · ${prettyDate(leg.arrdate||leg.date)}</div>
+      </div>
+    </div>
+    <div class="meta">${leg.arrdate&&leg.arrdate!==leg.date?"<span>＋1 day arrival</span>":""}</div>
+    ${leg.changed?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px"><span class="changed-badge">Changed</span><button class="mini" onclick="showChange('${leg.id}')">Show change</button></div>`:""}
+    <div class="crew"><span class="crewrole">Crew</span> <b>${profile.name}</b> <span class="crewtag">${profile.rank.split("—")[0].trim()}</span>${leg.capt?` &nbsp;·&nbsp; <b>${leg.capt}</b> <span class="crewtag capt">Captain</span>`:` &nbsp;·&nbsp; <span style="color:var(--muted)">Captain — tap Import to add</span>`}</div>
+    ${leg.note?`<div class="note">${leg.note}</div>`:""}
+  </div>`;
+}
+
+function simpleCard(it){
+  const del=`<div class="row-actions"><button class="mini danger" onclick="deleteItem('${it.id}')">Delete</button></div>`;
+  if(it.type==="off") return `<div class="card"><div class="band off"><div><div class="t">${it.label||"Day off"}</div><div class="s">${prettyDate(it.date)}</div></div>${it.code?`<div class="s">${it.code}</div>`:""}</div></div>`;
+  // placeholder flight (details unknown)
+  if(it.placeholder) return `<div class="card"><div class="band flight"><div class="t">Flight duty</div><div class="s">${prettyDate(it.date)}</div></div><div class="body"><p class="note">Details weren't in the screenshots. Tap Import → Add manually, or run a roster scan, to fill in flight number and times.</p></div><div class="row-actions"><button class="mini" onclick="openModal('manual','${it.date}')">＋ Fill in</button><button class="mini danger" onclick="deleteItem('${it.id}')">Delete</button></div></div>`;
+  // lone flight
+  if(it.type==="flight") return `<div class="card">${legRow(it)}${del}</div>`;
+  // generic duty (standby / sim / ground / transport / hotel)
+  const times=(it.start||it.end)?`<div class="meta"><span>Start <b>${it.start||"—"}</b></span><span>End <b>${it.end||"—"}</b></span></div>`:"";
+  const hasBody = times || it.note;
+  return `<div class="card"><div class="band ${it.type}"><div><div class="t">${it.label||TYPE_LABEL[it.type]||"Duty"}</div><div class="s">${prettyDate(it.date)}${it.code?" · "+it.code:""}</div></div><div class="s">${TYPE_LABEL[it.type]||""}</div></div>${hasBody?`<div class="body">${times}${it.note?`<div class="note">${it.note}</div>`:""}</div>`:""}${del}</div>`;
+}
+
+/* ---------- List & Trips views ---------- */
+function renderList(){
+  document.getElementById("calWrap").innerHTML="";
+  const y=cursor.getFullYear(), m=cursor.getMonth();
+  const days=new Date(y,m+1,0).getDate();
+  const seen=new Set(); let rows="";
+  for(let d=1; d<=days; d++){
+    const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const info=dayInfo(ds);
+    if(!info) continue;
+    if(info.trip){
+      if(seen.has(info.trip)) continue; seen.add(info.trip);
+      const legs=info.legs, dest=legs[0].to;
+      const startD=legs[0].date, endD=legs[legs.length-1].arrdate||legs[legs.length-1].date;
+      const range = startD===endD ? prettyDate(startD) : `${prettyDate(startD)} – ${prettyDate(endD)}`;
+      const changed = legs.some(l=>l.changed);
+      const nums=legs.map(l=>l.no).filter(Boolean).join(" / ");
+      rows+=`<div class="lcard" onclick="selectDate('${legs[0].date}')">
+        <div class="lcirc t-${info.type}">✈</div>
+        <div class="lmain"><div class="ltitle">${range}${changed?'<span class="cdot"></span>':""}</div>
+        <div class="lsub">${nums?`<span class="fnos">${nums}</span> · `:""}<span class="ldest">${dest}</span></div></div>
+        <div class="lchev">›</div></div>`;
+    } else {
+      const it=info.item;
+      const title=prettyDate(ds);
+      const sub=info.type==="flight"?(it.no?`${it.no} ${it.from||""}→${it.to||""}`:"Flight duty"):((it.label||TYPE_LABEL[info.type]||"Duty")+(it.start?` · ${it.start}–${it.end||""}`:""));
+      rows+=`<div class="lcard" onclick="selectDate('${ds}')">
+        <div class="lcirc t-${info.type}">${dutyIcon(info.type)}</div>
+        <div class="lmain"><div class="ltitle">${title}${it.changed?'<span class="cdot"></span>':""}</div>
+        <div class="lsub">${sub}</div></div></div>`;
+    }
+  }
+  document.getElementById("detail").innerHTML=`<div class="llist">${rows||'<div class="card"><div class="empty">No duties this month.</div></div>'}</div>`;
+}
+function renderTrips(){
+  document.getElementById("calWrap").innerHTML="";
+  const T=trips(); const names=Object.keys(T);
+  if(!names.length){ document.getElementById("detail").innerHTML='<div class="card"><div class="empty">No trips yet.</div></div>'; return; }
+  document.getElementById("detail").innerHTML=names.map(n=>tripCard(n,T[n])).join("");
+}
+
+function render(){
+  if(view==="month"){ renderMonth(); if(selectedKey&&!selectedKey.startsWith("trip:")){const info=dayInfo(selectedKey);renderDetail(selectedKey,info);} else if(selectedKey){const nm=selectedKey.slice(5);const T=trips();if(T[nm])document.getElementById("detail").innerHTML=tripCard(nm,T[nm]);} else document.getElementById("detail").innerHTML=""; }
+  else if(view==="list") renderList();
+  else if(view==="trips") renderTrips();
+  else renderProof();
+  renderStats();
+  syncProfile();
+}
+function syncProfile(){
+  document.getElementById("pName").textContent=profile.name;
+  document.getElementById("pStaff").textContent="#"+profile.staff;
+  document.getElementById("pRank").textContent=profile.rank;
+}
+
+/* ---------- Proof view ---------- */
+function renderProof(){
+  document.getElementById("calWrap").innerHTML="";
+  const stamp=`${profile.name} · Staff #${profile.staff} · ${profile.rank}`;
+  let html=`<div class="card"><div class="band flight"><div><div class="t">Source verification</div><div class="s">Attach the original roster screen for an audit trail</div></div></div>
+    <div class="body">
+      <div class="hint" style="margin:0 0 12px">Attach the screenshot straight from the ANA portal / your crew app. Each attachment is stamped with the <b>capture time</b> and your <b>staff number</b> so the parsed times can be checked against the source. Nothing leaves your device.</div>
+      <label class="drop" for="proofInput">📸 Add roster screenshot<input id="proofInput" type="file" accept="image/*" hidden></label>
+    </div></div>`;
+  if(!proof.length){
+    html+=`<div class="card"><div class="empty">No source screenshots attached yet.</div></div>`;
+  } else {
+    proof.slice().reverse().forEach(p=>{
+      html+=`<div class="card"><div class="proofstamp"><span>🔒 ${p.captured}</span><span>${stamp}</span></div>
+        <img class="proofimg" src="${p.img}" alt="roster source">
+        <div class="row-actions"><span class="mini" style="cursor:default">Attached ${p.added}</span><button class="mini danger" onclick="deleteProof('${p.id}')">Remove</button></div></div>`;
+    });
+  }
+  document.getElementById("detail").innerHTML=html;
+  const inp=document.getElementById("proofInput");
+  if(inp) inp.addEventListener("change",onProofFile);
+}
+function onProofFile(e){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    const captured=prompt("When was this screenshot captured? (as shown on the device clock)", nowStamp())||nowStamp();
+    proof.push({id:uid(),img:r.result,captured,added:nowStamp()});
+    saveProof(); render();
+  };
+  r.readAsDataURL(f);
+}
+function deleteProof(id){ proof=proof.filter(p=>p.id!==id); saveProof(); render(); }
+function nowStamp(){ const d=new Date(); return d.toLocaleString(undefined,{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
+
+/* ---------- Mutations ---------- */
+function deleteItem(id){ roster=roster.filter(i=>i.id!==id); save(); selectedKey=null; render(); }
+function deleteTrip(name){ if(!confirm("Delete all legs of "+name+"?"))return; roster=roster.filter(i=>i.trip!==name); save(); selectedKey=null; render(); }
+
+/* ---------- Change compare ---------- */
+function showChange(id){
+  const it=roster.find(i=>i.id===id); if(!it||!it.prev) return;
+  const p=it.prev, fields=[["Flight","no"],["From","from"],["To","to"],["Departure","dep"],["Arrival","arr"],["Check-in","ci"]];
+  let depWas=p.dep||it.dep, depNow=it.dep;
+  let head=`<div class="cmp">
+      <div class="col was"><div class="lbl">Was</div><div class="big">${p.dep||it.dep||"—"}</div><div class="lbl" style="margin:6px 0 0">${it.from||""}→${it.to||""}</div></div>
+      <div class="arrow">→</div>
+      <div class="col now"><div class="lbl">Now</div><div class="big">${it.dep||"—"}</div><div class="lbl" style="margin:6px 0 0">${it.from||""}→${it.to||""}</div></div>
+    </div>`;
+  let rows="";
+  fields.forEach(([label,key])=>{
+    const now=it[key], was=(key in p)?p[key]:now;
+    if(now==null&&was==null) return;
+    const chg=(was!==now)&&(key in p);
+    rows+=`<div class="cmp-row"><span class="k">${label}</span><span class="v ${chg?'chg':''}">${chg?`<span class="old">${was??"—"}</span>`:""}${now??"—"}</span></div>`;
+  });
+  if(p.note) rows+=`<div class="cmp-row"><span class="k">Note</span><span class="v chg">${p.note}</span></div>`;
+  document.getElementById("compareBody").innerHTML=head+`<div style="border:1px solid var(--line);border-radius:12px;padding:4px 12px">${rows}</div>`;
+  document.getElementById("compareModal").classList.add("open");
+}
+function closeCompare(){ document.getElementById("compareModal").classList.remove("open"); }
+document.getElementById("compareModal").addEventListener("click",e=>{ if(e.target.id==="compareModal") closeCompare(); });
+
+/* ---------- Share / export ---------- */
+function download(name, content, mime){
+  try{
+    const blob=new Blob([content],{type:mime||"text/html"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url); a.remove();},600);
+  }catch(e){ alert("Couldn't create the file on this device: "+e.message); }
+}
+function familySummary(){
+  const info=dayInfo(today);
+  if(!info) return `${profile.name} has a free day today`;
+  if(info.trip){
+    const leg=info.legs.find(l=>l.date===today)||info.legs.find(l=>(l.arrdate||l.date)===today);
+    if(leg) return `${profile.name} is flying ${apCity(leg.from)} → ${apCity(leg.to)} today`;
+    return `${profile.name} is on a layover in ${apCity(info.legs[0].to)}`;
+  }
+  const map={off:`${profile.name} is off today 🏠`,standby:`${profile.name} is on standby today`,sim:`${profile.name} is in the simulator today`,ground:`${profile.name} is on ground duty today`,transport:`${profile.name} is travelling today`,hotel:`${profile.name} is resting at the hotel`,flight:`${profile.name} is on a flight duty today`};
+  return map[info.type]||`${profile.name} is on duty today`;
+}
+function exportFamily(){
+  const prev=view; renderMonth(); const calHTML=document.getElementById("calWrap").innerHTML; render();
+  const styleTag=document.querySelector("style").outerHTML;
+  const legendHTML=document.querySelector(".legend").outerHTML;
+  const monthLabel=cursor.toLocaleDateString(undefined,{month:"long",year:"numeric"});
+  const T=trips();
+  const tripRows=Object.entries(T).map(([name,legs])=>{
+    const dest=legs[0].to, start=prettyDate(legs[0].date), end=prettyDate(legs[legs.length-1].arrdate||legs[legs.length-1].date);
+    return `<div class="cmp-row"><span class="k">✈ ${apCity(dest)} (${dest})</span><span class="v">${start} → ${end}</span></div>`;
+  }).join("")||`<div class="cmp-row"><span class="k">No trips this month</span><span></span></div>`;
+  const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${profile.name} · Roster ${monthLabel}</title>${styleTag}</head>
+<body><div class="wrap">
+  <header><div class="h-top"><div class="profile"><span class="logo">🛫</span><div class="pinfo"><div class="pname">${profile.name}</div><div class="pmeta">Roster · ${monthLabel}</div></div></div></div></header>
+  <div class="content">
+    <div class="card"><div class="band flight"><div><div class="t">${familySummary()}</div><div class="s">Snapshot taken ${nowStamp()}</div></div></div></div>
+    ${calHTML}
+    ${legendHTML}
+    <div class="card" style="margin-top:12px"><div class="band flight"><div class="t">Trips this month</div></div><div class="body">${tripRows}</div></div>
+    <p style="text-align:center;color:var(--muted);font-size:11.5px;margin:16px 0">Read-only snapshot from ${profile.name}'s RosterView · times shown in each airport's local time</p>
+  </div>
+</div></body></html>`;
+  download(`${profile.name.replace(/\s+/g,"-")}-roster-${monthLabel.replace(/\s+/g,"-")}.html`, html);
+}
+function exportICS(){
+  const pad=s=>s.replace(/-/g,"");
+  const dt=(d,t)=> t? pad(d)+"T"+t.replace(":","")+"00" : pad(d);
+  let out="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//RosterView//EN\r\nCALSCALE:GREGORIAN\r\n";
+  roster.forEach(it=>{
+    let summary,dstart,dend;
+    if(it.type==="flight"){ summary=`${it.no||"Flight"} ${it.from||""}-${it.to||""}`.trim(); dstart=dt(it.date,it.dep); dend=dt(it.arrdate||it.date,it.arr)||dstart; }
+    else if(it.type==="off"){ summary=it.label||"Day off"; dstart=pad(it.date); dend=dstart; }
+    else { summary=(it.code?it.code+" ":"")+(it.label||it.type); dstart=dt(it.date,it.start); dend=dt(it.date,it.end)||dstart; }
+    out+=`BEGIN:VEVENT\r\nUID:${it.id}@rosterview\r\nSUMMARY:${summary}\r\nDTSTART:${dstart}\r\nDTEND:${dend}\r\nEND:VEVENT\r\n`;
+  });
+  out+="END:VCALENDAR\r\n";
+  download(`${profile.name.replace(/\s+/g,"-")}-roster.ics`, out, "text/calendar");
+}
+const shareModal=document.getElementById("shareModal");
+function openShare(){ document.getElementById("shareMonth").textContent=cursor.toLocaleDateString(undefined,{month:"long",year:"numeric"}); shareModal.classList.add("open"); }
+function closeShare(){ shareModal.classList.remove("open"); }
+shareModal.addEventListener("click",e=>{ if(e.target===shareModal) closeShare(); });
+document.getElementById("shareBtn").onclick=openShare;
+document.getElementById("shareHtml").onclick=()=>{ exportFamily(); closeShare(); };
+document.getElementById("shareIcs").onclick=()=>{ exportICS(); closeShare(); };
+
+/* ---------- Modal ---------- */
+const modal=document.getElementById("modal");
+function openModal(pane,date){
+  modal.classList.add("open");
+  if(pane) switchMtab(pane);
+  if(date&&pane==="manual"){ document.getElementById("m_date").value=date; }
+}
+function closeModal(){ modal.classList.remove("open"); }
+modal.addEventListener("click",e=>{ if(e.target===modal) closeModal(); });
+document.getElementById("importBtn").onclick=()=>openModal();
+function switchMtab(name){
+  document.querySelectorAll(".mtab").forEach(t=>t.classList.toggle("active",t.dataset.mtab===name));
+  document.querySelectorAll(".mpane").forEach(p=>p.hidden=p.dataset.pane!==name);
+}
+document.querySelectorAll(".mtab").forEach(t=>t.onclick=()=>switchMtab(t.dataset.mtab));
+
+document.getElementById("m_type").onchange=e=>{
+  const f=e.target.value;
+  document.getElementById("m_flightFields").hidden = f!=="flight";
+  document.getElementById("m_sbyFields").hidden = (f==="flight"||f==="off");
+};
+document.getElementById("manualGo").onclick=()=>{
+  const type=document.getElementById("m_type").value;
+  const date=document.getElementById("m_date").value;
+  if(!date){ alert("Pick a date"); return; }
+  roster=roster.filter(i=>!(i.date===date&&i.placeholder)); // replace placeholder
+  if(type==="flight"){
+    roster.push({id:uid(),type:"flight",date,
+      no:val("m_no").toUpperCase(),trip:val("m_trip")||undefined,
+      from:val("m_from").toUpperCase(),to:val("m_to").toUpperCase(),
+      dep:val("m_dep"),arr:val("m_arr"),arrdate:val("m_arrdate")||undefined,capt:val("m_capt")||undefined});
+  } else if(type==="off"){ roster.push({id:uid(),type:"off",date});
+  } else { roster.push({id:uid(),type,date,start:val("m_start"),end:val("m_end"),label:val("m_label")}); }
+  save(); closeModal(); selectDate(date);
+  ["m_no","m_trip","m_from","m_to","m_dep","m_arr","m_arrdate","m_capt","m_start","m_end","m_label"].forEach(id=>document.getElementById(id).value="");
+}
+function val(id){return document.getElementById(id).value.trim();}
+
+document.getElementById("resetAll").onclick=()=>{ if(confirm("Reset roster to the sample August 2026 data?")){ roster=seed(); save(); closeModal(); render(); } };
+
+/* ---------- Paste parser ---------- */
+document.getElementById("pasteGo").onclick=()=>{
+  const lines=document.getElementById("pasteBox").value.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  let added=0;
+  lines.forEach(l=>{
+    const date=(l.match(/\b(20\d{2}-\d{2}-\d{2})\b/)||[])[1];
+    if(!date) return;
+    const times=[...l.matchAll(/\b(\d{1,2}:\d{2})\b/g)].map(m=>m[1]);
+    // flight leg: NHxxxx + AAA-BBB
+    const no=(l.match(/\b(NH\d{2,4})\b/i)||[])[1];
+    const rt=l.match(/\b([A-Z]{3})\s*[-–>\/]\s*([A-Z]{3})\b/);
+    if(no&&rt){ roster.push({id:uid(),type:"flight",date,no:no.toUpperCase(),from:rt[1].toUpperCase(),to:rt[2].toUpperCase(),dep:times[0],arr:times[1]}); added++; return; }
+    // any known roster code
+    let hit=null;
+    l.split(/[^A-Za-z0-9]+/).forEach(tok=>{ if(!hit){ const r=resolveCode(tok); if(r&&r.type!=="flight") hit=r; } });
+    if(hit){
+      const e={id:uid(),type:hit.type,date,code:hit.code,label:hit.label};
+      if(hit.type!=="off"){ e.start=times[0]; e.end=times[1]; }
+      roster.push(e); added++;
+    }
+  });
+  if(added){ save(); closeModal(); document.getElementById("pasteBox").value=""; render(); alert("Added "+added+" entr"+(added>1?"ies":"y")+"."); }
+  else alert("Couldn't parse any lines. Check the format shown above.");
+};
+
+/* ---------- ICS / CSV file import ---------- */
+document.getElementById("fileInput").addEventListener("change",e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const msg=document.getElementById("fileMsg"); msg.style.display="block";
+  const r=new FileReader();
+  if(f.type.startsWith("image/")){
+    // roster screenshot → auto-save to Proof (audit trail)
+    r.onload=()=>{
+      proof.push({id:uid(),img:r.result,captured:nowStamp(),added:nowStamp(),source:"import"});
+      saveProof();
+      msg.innerHTML=`📸 Screenshot saved to <b>Proof</b> (stamped ${nowStamp()}, Staff #${profile.staff}).<br>Reading the codes off the image comes with the roster scanner — for now add duties via Paste or Add manually.`;
+    };
+    r.readAsDataURL(f);
+    return;
+  }
+  r.onload=()=>{ const txt=r.result;
+    const n = /BEGIN:VEVENT/.test(txt)? importICS(txt) : importCSV(txt);
+    msg.textContent = n? `Imported ${n} entr${n>1?"ies":"y"}. Close to view.` : "No recognisable entries found in that file.";
+    if(n){ save(); render(); }
+  };
+  r.readAsText(f);
+});
+function importICS(txt){
+  // unfold folded lines
+  txt=txt.replace(/\r?\n[ \t]/g,"");
+  const events=txt.split(/BEGIN:VEVENT/).slice(1);
+  let n=0;
+  events.forEach(ev=>{
+    const g=k=>{const m=ev.match(new RegExp(k+"[^:]*:(.*)"));return m?m[1].trim():"";};
+    const sum=g("SUMMARY"), loc=g("LOCATION"), desc=g("DESCRIPTION");
+    const dsRaw=g("DTSTART"), deRaw=g("DTEND");
+    const parse=v=>{const m=v.match(/(\d{4})(\d{2})(\d{2})T?(\d{2})?(\d{2})?/);if(!m)return null;return{date:`${m[1]}-${m[2]}-${m[3]}`,time:m[4]?`${m[4]}:${m[5]}`:null};};
+    const s=parse(dsRaw), e2=parse(deRaw);
+    if(!s) return;
+    const blob=(sum+" "+loc+" "+desc).toUpperCase();
+    // flight leg first
+    const no=(blob.match(/\b(NH\d{2,4})\b/)||[])[1];
+    const rt=(sum+" "+loc).toUpperCase().match(/\b([A-Z]{3})\s*[-–>\/]\s*([A-Z]{3})\b/);
+    const capt=(desc.match(/CAP?T(?:AIN)?[:\s]+([A-Za-z][A-Za-z .'-]{2,40})/i)||[])[1];
+    if(no||rt){ roster.push({id:uid(),type:"flight",date:s.date,no,from:rt?.[1],to:rt?.[2],dep:s.time,arr:e2?.time,arrdate:e2&&e2.date!==s.date?e2.date:undefined,capt:capt?capt.trim():undefined}); n++; return; }
+    // known roster code
+    let hit=null; blob.split(/[^A-Z0-9]+/).forEach(tok=>{ if(!hit){ const r=resolveCode(tok); if(r&&r.type!=="flight") hit=r; } });
+    if(!hit){ if(/\bOFF\b|DAY OFF|REST DAY/.test(blob)) hit={type:"off",label:"Day off"}; else if(/SIM|SIMULATOR/.test(blob)) hit={type:"sim",label:"Simulator"}; else if(/STANDBY|STBY|SBY/.test(blob)) hit={type:"standby",label:"Standby"}; }
+    if(hit){ const e={id:uid(),type:hit.type,date:s.date,code:hit.code,label:hit.label}; if(hit.type!=="off"){e.start=s.time;e.end=e2?.time;} roster.push(e); n++; }
+  });
+  return n;
+}
+function importCSV(txt){
+  const lines=txt.split(/\r?\n/).filter(Boolean); let n=0;
+  lines.forEach(l=>{ const c=l.split(/[;,\t]/).map(x=>x.trim());
+    const date=c.find(x=>/^20\d{2}-\d{2}-\d{2}$/.test(x)); if(!date)return;
+    const no=c.find(x=>/^[A-Z]{2}\d{2,4}$/.test(x));
+    const froms=c.filter(x=>/^[A-Z]{3}$/.test(x));
+    const times=c.filter(x=>/^\d{1,2}:\d{2}$/.test(x));
+    if(no||froms.length>=2){ roster.push({id:uid(),type:"flight",date,no,from:froms[0],to:froms[1],dep:times[0],arr:times[1]}); n++; }
+  });
+  return n;
+}
+
+/* ---------- Nav & tabs ---------- */
+document.getElementById("prevM").onclick=()=>{ cursor.setMonth(cursor.getMonth()-1); selectedKey=null; render(); };
+document.getElementById("nextM").onclick=()=>{ cursor.setMonth(cursor.getMonth()+1); selectedKey=null; render(); };
+document.getElementById("todayBtn").onclick=()=>{ cursor=new Date(2026,7,1); selectDate(today); };
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active")); t.classList.add("active"); view=t.dataset.view; document.getElementById("detail").innerHTML=""; render(); });
+
+/* theme toggle */
+document.getElementById("themeBtn").onclick=()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const next=cur==="dark"?"light":cur==="light"?"":"dark";
+  if(next) document.documentElement.setAttribute("data-theme",next); else document.documentElement.removeAttribute("data-theme");
+  lsSet("rosterview_theme",next);
+};
+const savedTheme=lsGet("rosterview_theme"); if(savedTheme) document.documentElement.setAttribute("data-theme",savedTheme);
+
+/* profile edit */
+document.getElementById("profileBox").onclick=()=>{
+  const name=prompt("Your name",profile.name); if(name===null)return;
+  const staff=prompt("Staff number",profile.staff); if(staff===null)return;
+  const rank=prompt("Rank",profile.rank); if(rank===null)return;
+  profile={name:name.trim()||profile.name,staff:staff.trim()||profile.staff,rank:rank.trim()||profile.rank};
+  saveProfile(); render();
+};
+
+/* init */
+syncProfile();
+render();
+</script>
+</body>
+</html>
