@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RosterView — Support</title>
+<style>
+ :root{--ink:#12354f;--muted:#5c748a;--line:#dfe8f0;--accent:#4aa3d6;--bg:#fff}
+ @media (prefers-color-scheme:dark){:root{--ink:#e7eef5;--muted:#9fb3c4;--line:#22384e;--bg:#0d1721}}
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--ink);
+   font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+ .wrap{max-width:760px;margin:0 auto;padding:40px 22px 80px}
+ h1{font-size:30px;margin:0 0 6px} h2{font-size:19px;margin:34px 0 8px}
+ .sub{color:var(--muted);margin:0 0 28px;font-size:14px}
+ p,li{color:var(--ink)} ul{padding-left:22px}
+ .box{border:1px solid var(--line);border-left:4px solid var(--accent);
+   border-radius:10px;padding:14px 16px;margin:20px 0;background:rgba(74,163,214,.06)}
+ table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14.5px}
+ th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+ th{background:rgba(127,127,127,.08);font-weight:600}
+ a{color:var(--accent)} code{background:rgba(127,127,127,.14);padding:1px 5px;border-radius:4px;font-size:14px}
+ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+</style></head><body><div class="wrap">
+
+<h1>RosterView — Support</h1>
+<p class="sub">Questions, problems, or anything that looks wrong.</p>
+
+<div class="box"><b>Fastest way to get something fixed.</b> In the app, open
+<b>Profile &amp; settings → Diagnostic log</b>, screenshot it, and email it over. It shows what
+the app has stored and whether it reached the server, which usually answers the question
+in one go.</div>
+
+<h2>Getting started</h2>
+<ol>
+ <li>Open <b>Profile &amp; settings</b> and add your name and staff number.</li>
+ <li>Set <b>My airline's roster page</b> to the web address where you normally read your roster.</li>
+ <li>Tap <b>Import</b>, choose your airline portal, and sign in there yourself. RosterView never
+     sees your airline password.</li>
+</ol>
+<p>No portal? <b>Import → Paste</b> accepts plain lines such as
+<code>2026-09-18 NH0886 KUL-HND 14:15 22:15</code>, and <b>Upload file</b> takes an
+<b>.ics</b> calendar export.</p>
+
+<h2>Common questions</h2>
+
+<h3>My roster is missing after an update</h3>
+<p>Your roster is stored on the phone and survives updates. If a month looks empty, check the
+month arrows at the top — you may be looking at a month you haven't imported. Open the
+Diagnostic log and send it over if it still looks wrong.</p>
+
+<h3>The times don't match my roster</h3>
+<p>Times are shown in each airport's <b>own local time</b>, while most crew portals print
+everything in one zone. Tap any time to switch the whole app to UTC and back. Block time is
+calculated from the source times and never changes with the display zone.</p>
+
+<h3>A report time is missing</h3>
+<p>RosterView only ever shows the report time printed on your roster. It does not estimate one,
+because the roster is updated with actual times after a flight and a guess would disagree with
+it. If your roster has no report time for a duty, the app shows the departure instead.</p>
+
+<h3>A duty code shows as "Unclassified"</h3>
+<p>Open the <b>Codes</b> tab and tell RosterView what it is. It will fix that day and every
+future one, and the change stays on your phone.</p>
+
+<h3>Who can see my roster?</h3>
+<p><b>Profile &amp; settings → Who can see my roster.</b> Choose <b>Private</b> and it never
+leaves your phone; anything already shared is deleted from the server. See the
+<a href="privacy.html">privacy policy</a>.</p>
+
+<h3>I forgot my password</h3>
+<p>On the sign-in screen tap <b>Forgot your password?</b> and a six-digit code is emailed to you.</p>
+
+<h3>Deleting your account</h3>
+<p><b>Profile &amp; settings → Delete my account</b> permanently removes your account, anything
+you shared and your connections with other pilots. Deleting the app removes everything held on
+the phone.</p>
+
+<h2>Contact</h2>
+<p><a href="mailto:alensukaj@gmail.com">alensukaj@gmail.com</a> — please include the app version
+from the bottom of Profile &amp; settings, or the Diagnostic log.</p>
+
+<footer>RosterView is an unofficial personal tool for viewing your own roster more easily.
+It is not provided by, endorsed by or affiliated with any airline. Always check your
+airline's original roster.</footer>
+</div></body></html>
