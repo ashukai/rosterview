@@ -22,12 +22,13 @@
 </style></head><body><div class="wrap">
 
 <h1>RosterView — Privacy Policy</h1>
-<p class="sub">Last updated: 2 September 2026</p>
+<p class="sub">Last updated: 7 October 2026</p>
 
 <div class="box"><b>The short version.</b> Your roster is stored on your phone. Your airline
 password is never seen by RosterView. RosterView needs an account, because its point is
-comparing days off with your crew — but whether your roster is uploaded at all is your
-choice, and setting it to Private means it never leaves your phone.</div>
+comparing days off with your crew — but which other pilots can see your roster is your
+choice, and setting it to Private means none can. Your logbook, if you use it, is visible to
+you alone.</div>
 
 <h2>Your airline login</h2>
 <p>RosterView has no airline built into it. You tell it the web address of the page where
@@ -42,38 +43,69 @@ RosterView never submits the form for you — you always press Login yourself.</
 <h2>Your roster</h2>
 <p>When you import, your roster is read from the page and stored <b>on your device</b>.
 A copy of the original roster page is also saved on your device, under "Original", so you
-can check the app's times against the source. Both stay on the phone and are removed when
-you delete the app.</p>
+can check the app's times against the source.</p>
+<p>If you are signed in, each roster page you import is also kept <b>in your account</b>: the
+page, a picture of it, and the duties the app read from it. This is so you can get your
+"Original" pages back on a new phone, and so that when the app misreads an airline's page
+the developer can see exactly what went wrong and fix it. Other pilots never see these
+pages, whatever your sharing setting. You can delete every page held for you from the app
+(Profile &amp; settings, under who can see your roster).</p>
 
 <h2>Sharing with other pilots</h2>
 <p>RosterView requires an account. When you create one, your roster is shared with other
 RosterView pilots by default, so you can compare days off and find swaps. You can change
-that whenever you like in Profile &amp; settings, and your visibility setting controls
-everything — including the option for your roster never to be uploaded at all:</p>
+that whenever you like in Profile &amp; settings, and your visibility setting decides which
+other pilots can see your roster:</p>
 <ul>
- <li><b>Private</b> — your roster is <b>not uploaded at all</b>. It stays on your
-     phone. If you were previously sharing and switch to Private, the copy on our server is deleted.</li>
+ <li><b>Private</b> — no other pilot can see your roster. Your roster is not uploaded for
+     sharing, and if you were previously sharing and switch to Private, that shared copy is
+     deleted. (The imported pages described above are still kept in your account.)</li>
  <li><b>Favourites</b> — your roster is stored on our server and can only be read by pilots
      whose request you have accepted.</li>
  <li><b>Open</b> (the default when you create an account) — your roster can be read by any
      signed-in RosterView pilot.</li>
 </ul>
-<p>These rules are enforced by the database itself, not merely by the app.</p>
+<p>These rules are enforced by the database itself, not merely by the app. The developer
+can read rosters and imported pages in order to fix import problems, and does not share them.</p>
 
 <h2>What we store, and why</h2>
 <p>If you create an account, the following is held on our servers. Authentication and
 storage are provided by Supabase, acting as our processor.</p>
 <table>
  <tr><th>What</th><th>Why</th><th>Who can see it</th></tr>
- <tr><td>Email address</td><td>To sign you in and to send a password-reset code</td><td>Only you. Never shown to other pilots.</td></tr>
+ <tr><td>Email address</td><td>To sign you in, to send a password-reset code, and occasionally to tell you about RosterView (for example a welcome email or news of a new feature). Reply to any of them and we will stop.</td><td>Only you. Never shown to other pilots.</td></tr>
  <tr><td>Password</td><td>To sign you in</td><td>Nobody — it is stored encrypted and we cannot read it.</td></tr>
  <tr><td>Name, staff number, rank</td><td>So colleagues can find you and know whose roster they are looking at</td><td>Other signed-in pilots</td></tr>
  <tr><td>Profile photo, if you add one</td><td>To show who is who when comparing rosters</td><td>Other signed-in pilots</td></tr>
  <tr><td>Your roster</td><td>To let colleagues compare days off and find swaps</td><td>Per your visibility setting above</td></tr>
+ <tr><td>Your roster pages, as imported</td><td>To restore your "Original" pages and to fix import problems</td><td>Only you, and the developer when fixing the app. Never other pilots.</td></tr>
+ <tr><td>A backup of your logbook, if you use it while signed in</td><td>So you can get your logbook back on a new phone or after a mistake</td><td>Only you. Never other pilots.</td></tr>
  <tr><td>An account identifier</td><td>To link the above to your account</td><td>Not shown to anyone</td></tr>
 </table>
 <p>None of it is used for advertising, profiling or tracking, and none of it is sold or
 shared with anyone else.</p>
+
+<h2>Your logbook</h2>
+<p>The logbook is stored <b>on your device</b>. While you are signed in, a copy is also kept in
+your account a few seconds after each change, so that losing or replacing your phone does not
+cost you your logbook. It holds what you put in it: flights, aircraft, times, the names of
+the crew you flew with, and any signatures collected in the app. Other pilots can never
+see it, and it is not shared with anyone. You can also save a copy to a file yourself
+(Logbook → settings → Save a copy).</p>
+<p>On iPhone, when you are on Wi-Fi, a copy is also written to <b>your own iCloud Drive</b>, in a
+folder called RosterView that you can see in the Files app. Those files are yours: they are
+stored by Apple under your Apple Account, we cannot see them, and they stay until you delete
+them in Files — deleting the app or your RosterView account does not remove them.</p>
+
+<h2>Logbook files you send us</h2>
+<p>If you email us an export from another logbook app so that we can bring your flights into
+RosterView for you, we use that file only for that import. We do not share it, and we delete
+the file and the email once your import is done, and in any case within 30 days.</p>
+
+<h2>Weather</h2>
+<p>To show the weather for a layover, the app asks <a href="https://open-meteo.com">Open-Meteo</a>
+for the forecast at that airport's location. Only the airport's coordinates and the date are
+sent; nothing about you is.</p>
 
 <h2>Other people's names</h2>
 <p>Airline rosters list the crew you are flying with. Those names are stored on your device
@@ -90,15 +122,18 @@ data or your passcode.</p>
  <li>No analytics, tracking or advertising.</li>
  <li>No third-party trackers or advertising SDKs, and no selling or sharing of data with anyone.</li>
  <li>No location collection.</li>
- <li>No access to your contacts or calendar (a photo is read only if you pick one).</li>
+ <li>No access to your contacts. A photo is read only if you pick one.</li>
+ <li>Your calendar is written to only if you ask the app to add your roster to it, and only in
+     a calendar of its own called RosterView. Your other calendars are never read or changed.</li>
 </ul>
 
 <h2>Deleting your data</h2>
 <ul>
- <li><b>Account and shared rosters:</b> in the app, tap your photo → Profile &amp; settings →
-     <b>Delete my account</b>. This permanently removes your account, any rosters you shared and
-     your connections with other pilots.</li>
+ <li><b>Account and everything in it:</b> in the app, tap your photo → Profile &amp; settings →
+     <b>Delete my account</b>. This permanently removes your account, any rosters you shared,
+     the roster pages held for you, your logbook backup and your connections with other pilots.</li>
  <li><b>Everything on the phone:</b> delete the app.</li>
+ <li><b>Logbook copies in your iCloud Drive:</b> delete the RosterView folder in the Files app.</li>
 </ul>
 
 <h2>Children</h2>
