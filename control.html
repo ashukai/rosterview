@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>RosterView Control Room</title>
+<style>
+/* The owner's view of RosterView. Desktop first: this is read on a Mac, beside
+   the phone, not on it. Nothing here grants anything — every number comes
+   from an admin_cr_* function that checks is_admin() on the server. */
+:root{
+  color-scheme:light;
+  --bg:#f3f4f6; --card:#ffffff; --ink:#0b0d12; --sub:#5b6270; --faint:#9aa1ab; --line:rgba(12,16,24,.08); --fill:#eef0f3;
+  --accent:#2a78d6; --accent-ink:#1f5fae; --accent-soft:rgba(42,120,214,.12);
+  --good:#0ca30c; --good-ink:#0a7a0a; --warn:#fab219; --warn-ink:#8a5a00; --bad:#d03b3b; --bad-ink:#b02c2c;
+  --series:#2a78d6; --series-bad:#d03b3b; --grid:rgba(12,16,24,.07);
+  --shadow:0 1px 0 rgba(12,16,24,.04), 0 12px 28px -20px rgba(12,16,24,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme:dark;
+    --bg:#0a0c10; --card:#15171c; --ink:#f3f4f6; --sub:#a1a8b3; --faint:#636a75; --line:rgba(255,255,255,.08); --fill:#1f2228;
+    --accent:#3987e5; --accent-ink:#7db3f2; --accent-soft:rgba(57,135,229,.18);
+    --good-ink:#4fd14f; --warn-ink:#fab219; --bad-ink:#ff8a8a; --series:#3987e5; --grid:rgba(255,255,255,.07);
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0a0c10; --card:#15171c; --ink:#f3f4f6; --sub:#a1a8b3; --faint:#636a75; --line:rgba(255,255,255,.08); --fill:#1f2228;
+  --accent:#3987e5; --accent-ink:#7db3f2; --accent-soft:rgba(57,135,229,.18);
+  --good-ink:#4fd14f; --warn-ink:#fab219; --bad-ink:#ff8a8a; --series:#3987e5; --grid:rgba(255,255,255,.07);
+  --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg); color:var(--ink); font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased; letter-spacing:-.005em}
+button,input,select{font:inherit; color:inherit}
+.wrap{max-width:1440px; margin:0 auto; padding:18px 24px 60px}
+header{display:flex; align-items:center; gap:14px; margin-bottom:16px}
+header h1{margin:0; font-size:20px; font-weight:800; letter-spacing:-.4px}
+header .live{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:650; color:var(--sub)}
+.dot{width:8px; height:8px; border-radius:50%; background:var(--good); display:inline-block; flex:none}
+.dot.off{background:var(--faint)} .dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)}
+.live .dot{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){ .live .dot{animation:none} }
+header .sp{flex:1}
+.btn{appearance:none; border:1px solid var(--line); background:var(--card); border-radius:10px; padding:7px 12px; font-weight:650; font-size:13px; cursor:pointer}
+.btn:hover{background:var(--fill)}
+.btn.primary{background:var(--ink); color:var(--card); border-color:transparent}
+.demo{font-size:12px; font-weight:700; color:var(--warn-ink); background:color-mix(in srgb,var(--warn) 18%,transparent); padding:3px 9px; border-radius:999px}
+
+/* the layout */
+.grid{display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:14px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px 18px; min-width:0}
+.card h2{margin:0 0 2px; font-size:14px; font-weight:750; letter-spacing:-.1px}
+.card .cap{font-size:12px; color:var(--sub); margin-bottom:12px}
+.c3{grid-column:span 3} .c4{grid-column:span 4} .c5{grid-column:span 5} .c6{grid-column:span 6} .c7{grid-column:span 7} .c8{grid-column:span 8} .c12{grid-column:span 12}
+@media (max-width:1100px){ .c3,.c4,.c5{grid-column:span 6} .c7,.c8{grid-column:span 12} }
+@media (max-width:720px){ .wrap{padding:14px 16px 40px} .c3,.c4,.c5,.c6,.c7,.c8{grid-column:span 12} }
+
+/* the numbers */
+.kpis{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px}
+.kpi{padding:12px 14px; border-radius:12px; background:var(--fill); min-width:0}
+.kpi b{display:block; font-size:28px; font-weight:800; letter-spacing:-.8px; line-height:1.1; font-variant-numeric:tabular-nums}
+.kpi span{display:flex; align-items:center; gap:6px; margin-top:3px; font-size:12px; font-weight:650; color:var(--sub)}
+.kpi.bad b{color:var(--bad-ink)}
+@media (max-width:720px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+/* the app, first screen to last */
+.map{display:flex; flex-direction:column; gap:2px}
+.mapr{display:grid; grid-template-columns:18px minmax(0,1fr) auto auto; align-items:center; gap:10px; padding:6px 8px; border-radius:9px; cursor:pointer; border:none; background:transparent; text-align:left}
+.mapr:hover{background:var(--fill)}
+.mapr.on{background:var(--accent-soft)}
+.mapr i{font-style:normal; width:18px; height:18px; border-radius:50%; display:grid; place-items:center; font-size:10.5px; font-weight:800; color:var(--sub); background:var(--fill)}
+.mapr .nm{font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.mapr .now{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:var(--good-ink); min-width:42px; justify-content:flex-end; font-variant-numeric:tabular-nums}
+.mapr .now.zero{color:var(--faint); font-weight:600}
+.mapr .wk{font-size:12px; color:var(--sub); min-width:66px; text-align:right; font-variant-numeric:tabular-nums}
+.maphd{display:grid; grid-template-columns:18px minmax(0,1fr) auto auto; gap:10px; padding:0 8px 6px; font-size:11px; font-weight:700; color:var(--faint)}
+.maphd span:nth-child(3){min-width:42px; text-align:right} .maphd span:nth-child(4){min-width:66px; text-align:right}
+
+/* charts */
+.chart{position:relative}
+.chart svg{display:block; width:100%; height:auto; overflow:visible}
+.chart .ax{font-size:10.5px; fill:var(--faint)}
+.chart .gl{stroke:var(--grid); stroke-width:1}
+.chart .hit{fill:transparent; cursor:default}
+.tip{position:fixed; z-index:50; pointer-events:none; background:var(--ink); color:var(--card); font-size:12px; font-weight:600; padding:6px 9px;
+  border-radius:8px; white-space:nowrap; transform:translate(-50%,-120%); display:none; box-shadow:0 8px 20px -8px rgba(0,0,0,.4)}
+.tip b{font-weight:800}
+.hbars{display:flex; flex-direction:column; gap:7px}
+.hb{display:grid; grid-template-columns:130px minmax(0,1fr) 64px; align-items:center; gap:10px; font-size:12.5px}
+.hb .l{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--sub); font-weight:600}
+.hb .t{height:12px; border-radius:0 4px 4px 0; background:var(--fill); overflow:hidden}
+.hb .t i{display:block; height:100%; background:var(--series); border-radius:0 4px 4px 0}
+.hb .v{text-align:right; font-weight:700; font-variant-numeric:tabular-nums}
+.tabs{display:flex; gap:2px; padding:3px; border-radius:10px; background:var(--fill); width:max-content; margin-bottom:12px}
+.tabs button{border:none; background:transparent; padding:5px 11px; border-radius:8px; font-size:12.5px; font-weight:650; color:var(--sub); cursor:pointer}
+.tabs button.on{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+/* tables and lists */
+table{width:100%; border-collapse:collapse; font-size:13px}
+th{text-align:left; font-size:11px; font-weight:700; color:var(--faint); padding:0 10px 8px 0; white-space:nowrap}
+td{padding:8px 10px 8px 0; border-top:1px solid var(--line); vertical-align:top}
+td.num, th.num{text-align:right; font-variant-numeric:tabular-nums}
+tr.tap{cursor:pointer} tr.tap:hover td{background:var(--fill)}
+.who{font-weight:700} .muted{color:var(--sub)} .faint{color:var(--faint)}
+.tag{display:inline-block; font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px; background:var(--fill); color:var(--sub); white-space:nowrap}
+.tag.bad{color:var(--bad-ink); background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.tag.good{color:var(--good-ink); background:color-mix(in srgb,var(--good) 12%,transparent)}
+.tag.warn{color:var(--warn-ink); background:color-mix(in srgb,var(--warn) 18%,transparent)}
+.tag.acc{color:var(--accent-ink); background:var(--accent-soft)}
+.scroll{max-height:440px; overflow:auto; margin:0 -4px; padding:0 4px}
+.empty{padding:22px 0; text-align:center; color:var(--faint); font-size:13px}
+.feed{display:flex; flex-direction:column}
+.ev{display:grid; grid-template-columns:62px 18px minmax(0,1fr); gap:10px; padding:8px 0; border-top:1px solid var(--line); font-size:13px}
+.ev:first-child{border-top:none}
+.ev time{font-size:12px; color:var(--faint); font-variant-numeric:tabular-nums; padding-top:1px}
+.ev .k{width:18px; height:18px; border-radius:6px; display:grid; place-items:center; font-size:10px; font-weight:800; background:var(--fill); color:var(--sub)}
+.ev .k.bad{background:color-mix(in srgb,var(--bad) 14%,transparent); color:var(--bad-ink)}
+.ev .k.good{background:color-mix(in srgb,var(--good) 14%,transparent); color:var(--good-ink)}
+.ev .k.acc{background:var(--accent-soft); color:var(--accent-ink)}
+.ev .d{min-width:0} .ev .d small{display:block; color:var(--sub); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.filters{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px}
+.filters input[type=search]{min-width:min(340px,100%)}
+.filters select,.filters input{border:1px solid var(--line); background:var(--card); border-radius:9px; padding:6px 9px; font-size:12.5px}
+.need{display:flex; flex-direction:column; gap:8px}
+.ni{display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:12px; background:var(--fill)}
+.ni b{display:block; font-size:13.5px} .ni span{font-size:12.5px; color:var(--sub)}
+.ni .dot{margin-top:6px}
+.bug b{font-size:13px; font-family:ui-monospace,Menlo,monospace; font-weight:600; word-break:break-word}
+
+/* the pilot drawer */
+.drawer{position:fixed; inset:0 0 0 auto; width:min(520px,100vw); background:var(--card); border-left:1px solid var(--line);
+  box-shadow:-20px 0 50px -20px rgba(0,0,0,.35); z-index:40; transform:translateX(102%); transition:transform .25s cubic-bezier(.2,.7,.3,1);
+  display:flex; flex-direction:column}
+.drawer.open{transform:none}
+.drawer .hd{display:flex; align-items:center; gap:10px; padding:16px 18px; border-bottom:1px solid var(--line)}
+.drawer .hd h3{margin:0; font-size:17px; flex:1}
+.drawer .bd{padding:14px 18px 30px; overflow:auto}
+.facts{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:14px}
+.facts div{background:var(--fill); border-radius:10px; padding:9px 11px}
+.facts b{display:block; font-size:16px; font-weight:800; font-variant-numeric:tabular-nums}
+.facts span{font-size:11.5px; color:var(--sub); font-weight:600}
+
+/* signing in */
+.gate{max-width:380px; margin:12vh auto; text-align:center}
+.gate h1{font-size:24px; margin:0 0 6px}
+.gate p{color:var(--sub); margin:0 0 20px}
+.gate form{display:flex; flex-direction:column; gap:10px; text-align:left}
+.gate input{border:1px solid var(--line); background:var(--card); border-radius:12px; padding:12px 13px; font-size:15px}
+.gate .btn{padding:12px; font-size:15px}
+.gate .err{color:var(--bad-ink); font-size:13px; min-height:18px}
+.sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="tip" id="tip" role="tooltip"></div>
+<div id="root"></div>
+
+<script>
+/* ============================================================================
+   CONFIG — the same public project address and key as the app. The key is
+   the public one; what protects the data is the server: every admin_cr_*
+   function checks is_admin() itself.
+   ========================================================================= */
+const SB_URL="https://hmvxpkihiohylpwvtfqv.supabase.co";
+const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhtdnhwa2loaW9oeWxwd3Z0ZnF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMzUzOTIsImV4cCI6MjEwMjgxMTM5Mn0.OE7D-yP42NAcCg7vF0h1368d1CNN5HEJhKmaJdlkvjk";
+const SESS_KEY="rvcr_session";
+const DEMO = /(^|[#?&])demo\b/.test(location.hash+location.search);
+
+/* The app, first screen to last, in the order a new pilot meets it. `view` is
+   what the app sends when that screen opens. */
+const SCREENS=[
+  {view:"gate",    name:"Sign in / sign up"},
+  {view:"import",  name:"Import sheet"},
+  {view:"portal",  name:"Airline roster page"},
+  {view:"month",   name:"Month"},
+  {view:"list",    name:"List"},
+  {view:"crew",    name:"Crew"},
+  {view:"pilot",   name:"A colleague's roster"},
+  {view:"compare", name:"Compare"},
+  {view:"swap",    name:"Swap"},
+  {view:"log",     name:"Logbook"},
+  {view:"proof",   name:"Original"},
+  {view:"settings",name:"Profile & settings"}
+];
+const SCREEN_NAME=Object.fromEntries(SCREENS.map(s=>[s.view,s.name]));
+
+/* What each record means, in words. */
+const KINDS={
+  app_open:        {t:"Opened the app",                k:"",   i:"↗"},
+  view:            {t:"Opened",                        k:"",   i:"›"},
+  signup:          {t:"Signed up",                     k:"good",i:"+"},
+  signin:          {t:"Signed in",                     k:"",   i:"→"},
+  signout:         {t:"Signed out",                    k:"",   i:"←"},
+  roster_import:   {t:"Imported a roster",             k:"good",i:"✓"},
+  import_empty:    {t:"Import found no duties",        k:"bad",i:"!"},
+  import_failed:   {t:"Import failed",                 k:"bad",i:"!"},
+  bring_in:        {t:"Brought roster flights into the logbook", k:"acc", i:"↓"},
+  logbook_import:  {t:"Imported an old logbook",       k:"acc",i:"↓"},
+  logbook_import_failed:{t:"Old logbook import failed",k:"bad",i:"!"},
+  flight_saved:    {t:"Saved a flight",                k:"",   i:"✓"},
+  pdf_export:      {t:"Made a logbook PDF",            k:"",   i:"⇩"},
+  airline_request: {t:"Asked for their airline",       k:"acc",i:"?"},
+  compare:         {t:"Compared rosters",              k:"",   i:"⇄"},
+  swap_request:    {t:"Asked for a swap",              k:"acc",i:"⇄"},
+  error:           {t:"Error",                         k:"bad",i:"!"},
+  quiet_error:     {t:"Something failed quietly",      k:"bad",i:"!"}
+};
+function kindOf(k){ return KINDS[k] || {t:k.replace(/_/g," "), k:"", i:"·"}; }
+
+/* ---------- tiny helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=n=>(+n||0).toLocaleString("en-US");
+const hm=m=>{ m=Math.max(0,Math.round(+m||0)); return num(Math.floor(m/60))+":"+String(m%60).padStart(2,"0"); };
+function ago(t){
+  if(!t) return "never"; const s=(Date.now()-new Date(t).getTime())/1000;
+  if(s<60) return "just now"; if(s<3600) return Math.round(s/60)+" min ago";
+  if(s<86400) return Math.round(s/3600)+" h ago"; if(s<86400*14) return Math.round(s/86400)+" d ago";
+  return new Date(t).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});
+}
+const hhmm=t=>new Date(t).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+const dshort=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"});
+
+/* ---------- the server ---------- */
+function sess(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(e){ return null; } }
+function setSess(s){ try{ s?localStorage.setItem(SESS_KEY,JSON.stringify(s)):localStorage.removeItem(SESS_KEY); }catch(e){} }
+async function signIn(email, password){
+  const r=await fetch(SB_URL+"/auth/v1/token?grant_type=password",{method:"POST",
+    headers:{"apikey":SB_KEY,"Content-Type":"application/json"}, body:JSON.stringify({email,password})});
+  const b=await r.json().catch(()=>({}));
+  if(!r.ok || !b.access_token) throw new Error(b.error_description||b.msg||"Could not sign in.");
+  b.expires_at_ms=Date.now()+(+b.expires_in||3600)*1000; setSess(b); return b;
+}
+async function renew(){
+  const s=sess(); if(!s||!s.refresh_token) return null;
+  const r=await fetch(SB_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",
+    headers:{"apikey":SB_KEY,"Content-Type":"application/json"}, body:JSON.stringify({refresh_token:s.refresh_token})});
+  if(!r.ok){ if(r.status>=400&&r.status<500) setSess(null); return null; }
+  const b=await r.json(); b.expires_at_ms=Date.now()+(+b.expires_in||3600)*1000; setSess(b); return b;
+}
+async function rpc(fn, args){
+  let s=sess(); if(!s) throw new Error("signed out");
+  if(Date.now() > (s.expires_at_ms||0)-60000) s=await renew()||s;
+  const call=()=>fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+(sess()||{}).access_token,"Content-Type":"application/json"},
+    body:JSON.stringify(args||{})});
+  let r=await call();
+  if(r.status===401){ if(await renew()) r=await call(); else throw new Error("signed out"); }
+  if(!r.ok){ const b=await r.json().catch(()=>({})); const e=new Error(b.message||("HTTP "+r.status)); e.code=b.code; throw e; }
+  return r.json();
+}
+/* A function the server does not have yet is not an error on this page: it is
+   "run part NN". Everything else says what went wrong. */
+async function tryRpc(fn, args, fallback){
+  try{ return await rpc(fn,args); }
+  catch(e){ if(/does not exist|PGRST202|42883|Could not find/i.test(String(e.message)+e.code)) { S.missing.add(fn); return fallback; } throw e; }
+}
+
+/* ---------- state ---------- */
+const S={sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
+         missing:new Set(), view:"", kind:"", q:"", chart:"active", loadedAt:0, err:"", pilot:null, timer:null};
+
+async function load(){
+  if(DEMO){ demoData(); draw(); return; }
+  try{
+    const [sum,daily,online,events,errors,screens,funnel,pilots,requests]=await Promise.all([
+      tryRpc("admin_cr_summary",{},[]), tryRpc("admin_cr_daily",{p_days:60},[]), tryRpc("admin_cr_online",{p_minutes:15},[]),
+      tryRpc("admin_cr_events",{p_limit:300},[]), tryRpc("admin_cr_errors",{p_days:14},[]), tryRpc("admin_cr_screens",{p_days:7},[]),
+      tryRpc("admin_cr_funnel",{},[]), tryRpc("admin_cr_pilots",{},[]), tryRpc("admin_airline_requests",{},[])]);
+    Object.assign(S,{sum:(sum||[])[0]||null, daily, online, events, errors, screens, funnel, pilots, requests, err:"", loadedAt:Date.now()});
+  }catch(e){
+    if(/signed out/.test(e.message)){ setSess(null); draw(); return; }
+    S.err=e.message;
+  }
+  draw();
+}
+/* Every 20 seconds for who is online and what just happened; the rest with it. */
+function startLive(){ clearInterval(S.timer); S.timer=setInterval(()=>{ if(!document.hidden && (sess()||DEMO)) load(); }, 20000); }
+
+/* ============================================================================
+   DRAWING
+   ========================================================================= */
+function draw(){
+  const root=$("#root");
+  if(!DEMO && !sess()){ root.innerHTML=gateHtml(); wireGate(); return; }
+  if(S.sum===null && !S.err && !DEMO && !S.loadedAt){ root.innerHTML=`<div class="wrap"><div class="empty">Loading…</div></div>`; return; }
+  const keepScroll=[...document.querySelectorAll(".scroll")].map(x=>x.scrollTop);
+  root.innerHTML=`<div class="wrap">
+    ${headerHtml()}
+    ${S.err?`<div class="card" style="margin-bottom:14px;border-color:var(--bad)"><b>Couldn't load:</b> ${esc(S.err)}</div>`:""}
+    ${S.missing.size?`<div class="card" style="margin-bottom:14px"><b>Some panels need the database updated.</b>
+      <span class="muted">Run SQL part 38 in Supabase (and part 37 for airline requests), then reload. Missing: ${esc([...S.missing].join(", "))}</span></div>`:""}
+    <div class="grid">
+      <section class="card c8" aria-labelledby="hKpi"><h2 id="hKpi">Right now</h2><div class="cap">${S.loadedAt?"Updated "+hhmm(S.loadedAt):""}${DEMO?" · made-up data":""}</div>${kpiHtml()}</section>
+      <section class="card c4" style="grid-row:span 2" aria-labelledby="hMap"><h2 id="hMap">The app, first screen to last</h2>
+        <div class="cap">Online now on each screen, and pilots who opened it in the last 7 days. Click one to filter the activity.</div>${mapHtml()}</section>
+      <section class="card c8" aria-labelledby="hTrend"><h2 id="hTrend">${({active:"Active pilots",signups:"Sign-ups",errors:"Errors",imports:"Roster imports"})[S.chart]} per day</h2>
+        <div class="cap">Last 60 days</div>
+        <div class="tabs" role="tablist">${[["active","Active pilots"],["signups","Sign-ups"],["imports","Roster imports"],["errors","Errors"]].map(([k,l])=>
+          `<button role="tab" aria-selected="${S.chart===k}" class="${S.chart===k?"on":""}" onclick="S.chart='${k}';draw()">${l}</button>`).join("")}</div>
+        <div class="chart" id="trend">${trendSvg()}</div></section>
+
+      <section class="card c5" aria-labelledby="hOn"><h2 id="hOn">Online now</h2><div class="cap">${S.online.filter(o=>live(o)).length} in the app · seen in the last 15 minutes below</div>${onlineHtml()}</section>
+      <section class="card c7" aria-labelledby="hNeed"><h2 id="hNeed">Needs you</h2><div class="cap">Things a pilot is stuck on, newest first</div>${needHtml()}</section>
+
+      <section class="card c7" aria-labelledby="hBugs"><h2 id="hBugs">Bugs pilots hit</h2><div class="cap">Last 14 days, grouped by message</div>${bugsHtml()}</section>
+      <section class="card c5" aria-labelledby="hFun"><h2 id="hFun">How far pilots get</h2><div class="cap">Every pilot, from signing up onwards</div>${funnelHtml()}</section>
+
+      <section class="card c7" aria-labelledby="hFeed"><h2 id="hFeed">Activity</h2><div class="cap">What happened, newest first</div>${feedHtml()}</section>
+      <section class="card c5" aria-labelledby="hScr"><h2 id="hScr">Screens used</h2><div class="cap">Pilots who opened each screen, last 7 days</div>${screensHtml()}</section>
+
+      <section class="card c12" aria-labelledby="hPil"><h2 id="hPil">Pilots</h2><div class="cap">${num(S.pilots.length)} · click one for everything about them</div>${pilotsHtml()}</section>
+    </div>
+  </div>
+  <aside class="drawer${S.pilot?" open":""}" id="drawer" aria-label="Pilot">${S.pilot?drawerHtml():""}</aside>`;
+  [...document.querySelectorAll(".scroll")].forEach((x,i)=>{ if(keepScroll[i]) x.scrollTop=keepScroll[i]; });
+  wireChart();
+}
+function headerHtml(){
+  const me=(sess()||{}).user||{};
+  return `<header>
+    <h1>RosterView control room</h1>
+    <span class="live"><i class="dot${S.err?" bad":""}"></i>${S.err?"Not updating":"Live · every 20 s"}</span>
+    ${DEMO?`<span class="demo">Demo — made-up data</span>`:""}
+    <span class="sp"></span>
+    <span class="muted" style="font-size:12.5px">${esc(me.email||"")}</span>
+    <button class="btn" onclick="load()">Refresh</button>
+    <button class="btn" onclick="toggleTheme()" aria-label="Light or dark">◑</button>
+    ${DEMO?"":`<button class="btn" onclick="setSess(null);location.reload()">Sign out</button>`}
+  </header>`;
+}
+const live=o=>Date.now()-new Date(o.seen_at).getTime() < 3*60000;
+function kpiHtml(){
+  const s=S.sum||{};
+  const k=(v,l,cls,dot)=>`<div class="kpi ${cls||""}"><b>${v==null?"–":num(v)}</b><span>${dot?`<i class="dot ${dot}"></i>`:""}${l}</span></div>`;
+  return `<div class="kpis">
+    ${k(s.online_now,"online now","", "")}
+    ${k(s.active_today,"active today")}
+    ${k(s.active_7d,"active in 7 days")}
+    ${k(s.pilots,"pilots signed up")}
+    ${k(s.signups_7d,"new in 7 days")}
+    ${k(s.never_imported,"never imported a roster", (+s.never_imported? "":""), (+s.never_imported?"warn":""))}
+    ${k(s.errors_24h,"errors in 24 h · "+num(s.error_pilots_24h)+" pilots", +s.errors_24h?"bad":"", +s.errors_24h?"bad":"")}
+    ${k(s.logbooks,"logbooks · "+num(s.logbook_entries)+" entries")}
+  </div>`;
+}
+function mapHtml(){
+  const scr=Object.fromEntries((S.screens||[]).map(x=>[x.view,x]));
+  const onNow={}; S.online.filter(live).forEach(o=>{ onNow[o.view]=(onNow[o.view]||0)+1; });
+  return `<div class="maphd"><span></span><span>Screen</span><span>Now</span><span>7 days</span></div>
+  <div class="map">${SCREENS.map((s,i)=>{
+    const n=onNow[s.view]||0, w=(scr[s.view]||{}).pilots;
+    return `<button class="mapr${S.view===s.view?" on":""}" onclick="S.view=(S.view==='${s.view}'?'':'${s.view}');draw()" aria-pressed="${S.view===s.view}">
+      <i>${i+1}</i><span class="nm">${esc(s.name)}</span>
+      <span class="now${n?"":" zero"}">${n?`<i class="dot" style="width:7px;height:7px;background:var(--good)"></i>`:""}${n}</span>
+      <span class="wk">${w==null?"–":num(w)+" pilot"+(+w===1?"":"s")}</span></button>`; }).join("")}</div>`;
+}
+function onlineHtml(){
+  const rows=S.online||[];
+  if(!rows.length) return `<div class="empty">Nobody in the last 15 minutes.</div>`;
+  return `<div class="scroll"><table><thead><tr><th>Pilot</th><th>Screen</th><th>Version</th><th class="num">Seen</th></tr></thead><tbody>
+    ${rows.map(o=>`<tr class="tap" onclick="openPilot('${esc(o.user_id)}')">
+      <td><span class="who">${esc(o.pilot)}</span> <span class="faint">${esc(o.airline||"")}</span></td>
+      <td>${live(o)?`<i class="dot" style="margin-right:6px"></i>`:`<i class="dot off" style="margin-right:6px"></i>`}${esc(SCREEN_NAME[o.view]||o.view||"–")}</td>
+      <td><span class="tag">${esc(vlabel(o.app_tag))}</span></td>
+      <td class="num muted">${live(o)?"now":ago(o.seen_at)}<br><span class="faint" style="font-size:11.5px">in for ${dur(o.since,o.seen_at)}</span></td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+const vlabel=t=>t?("v"+String(t).replace(/^R/i,"")):"?";
+function dur(a,b){ const m=Math.max(0,Math.round((new Date(b)-new Date(a))/60000)); return m<60?m+" min":Math.floor(m/60)+" h "+(m%60)+" min"; }
+
+/* What needs a person: a pilot stuck, a file that would not import, an
+   airline asked for, a bug many pilots hit. */
+function needHtml(){
+  const out=[];
+  (S.requests||[]).filter(r=>r.status==="new").forEach(r=>out.push({at:r.updated_at, dot:"warn",
+    t:`${esc(r.airline)} — ${esc(r.pilot)} wants their airline added`, s:`${num(r.samples)} file${+r.samples===1?"":"s"} · answer it in the app, admin mode → Requests`}));
+  (S.events||[]).filter(e=>e.kind==="logbook_import_failed").slice(0,8).forEach(e=>out.push({at:e.at, dot:"bad", uid:e.user_id,
+    t:`${esc(e.pilot)}'s old logbook would not import`, s:esc(((e.data||{}).reason||"")+((e.data||{}).format?" · "+(e.data||{}).format:""))}));
+  (S.events||[]).filter(e=>e.kind==="import_empty"||e.kind==="import_failed").slice(0,8).forEach(e=>out.push({at:e.at, dot:"bad", uid:e.user_id,
+    t:`${esc(e.pilot)} (${esc(e.airline)}) imported and got nothing`, s:esc(((e.data||{}).parser||"")+((e.data||{}).reason?" · "+(e.data||{}).reason:""))}));
+  (S.pilots||[]).filter(p=>!+p.months && (Date.now()-new Date(p.joined))>2*86400000 && (Date.now()-new Date(p.joined))<30*86400000).slice(0,8)
+    .forEach(p=>out.push({at:p.joined, dot:"warn", uid:p.id, t:`${esc(p.pilot)} (${esc(p.airline)}) signed up ${ago(p.joined)} and never imported`, s:"They may be stuck at the first step"}));
+  (S.errors||[]).filter(b=>+b.pilots>=2).slice(0,5).forEach(b=>out.push({at:b.last_at, dot:"bad",
+    t:`A bug on ${num(b.pilots)} phones`, s:esc(String(b.msg).slice(0,110))}));
+  out.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  if(!out.length) return `<div class="empty">Nothing waiting on you.</div>`;
+  return `<div class="need scroll" style="max-height:330px">${out.slice(0,14).map(n=>`<div class="ni"${n.uid?` style="cursor:pointer" onclick="openPilot('${esc(n.uid)}')"`:""}>
+    <i class="dot ${n.dot}"></i><div><b>${n.t}</b><span>${n.s} · ${ago(n.at)}</span></div></div>`).join("")}</div>`;
+}
+function bugsHtml(){
+  const rows=S.errors||[];
+  if(!rows.length) return `<div class="empty">No errors reported in 14 days.</div>`;
+  return `<div class="scroll" style="max-height:330px"><table><thead><tr><th>What went wrong</th><th class="num">Times</th><th class="num">Pilots</th><th>Versions</th><th class="num">Last</th></tr></thead><tbody>
+    ${rows.map(b=>`<tr><td class="bug"><b>${esc(b.msg)}</b><br><span class="faint" style="font-size:11.5px">on ${esc(String(b.views||"").split(", ").map(v=>SCREEN_NAME[v]||v).join(", "))}${
+        b.sample&&b.sample.src?" · "+esc(b.sample.src):""}</span></td>
+      <td class="num">${num(b.times)}</td><td class="num">${num(b.pilots)}</td>
+      <td>${String(b.versions||"").split(", ").map(v=>`<span class="tag">${esc(vlabel(v))}</span>`).join(" ")}</td>
+      <td class="num muted">${ago(b.last_at)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+function funnelHtml(){
+  const rows=S.funnel||[]; if(!rows.length) return `<div class="empty">No data yet.</div>`;
+  const top=Math.max(1,...rows.map(r=>+r.pilots||0));
+  return `<div class="hbars">${rows.map((r,i)=>{ const pct=Math.round(100*(+r.pilots||0)/Math.max(1,+rows[0].pilots||0));
+    return `<div class="hb" title="${esc(r.label)}: ${num(r.pilots)} (${pct}% of everyone who signed up)"><span class="l">${esc(r.label)}</span>
+      <span class="t"><i style="width:${(100*(+r.pilots||0)/top).toFixed(1)}%"></i></span><span class="v">${num(r.pilots)} <span class="faint" style="font-weight:600">${i?pct+"%":""}</span></span></div>`; }).join("")}</div>`;
+}
+function screensHtml(){
+  const rows=(S.screens||[]).slice().sort((a,b)=>(+b.pilots)-(+a.pilots)); if(!rows.length) return `<div class="empty">No screens opened in 7 days.</div>`;
+  const top=Math.max(1,...rows.map(r=>+r.pilots||0));
+  return `<div class="hbars">${rows.map(r=>`<div class="hb" title="${esc(SCREEN_NAME[r.view]||r.view)}: ${num(r.pilots)} pilots, opened ${num(r.opens)} times">
+    <span class="l">${esc(SCREEN_NAME[r.view]||r.view)}</span><span class="t"><i style="width:${(100*(+r.pilots||0)/top).toFixed(1)}%"></i></span>
+    <span class="v">${num(r.pilots)}</span></div>`).join("")}</div>`;
+}
+function feedHtml(){
+  let rows=(S.events||[]).filter(e=>e.kind!=="view" || S.kind==="view");
+  if(S.view) rows=rows.filter(e=>e.view===S.view || (e.kind==="view" && e.view===S.view));
+  if(S.kind) rows=rows.filter(e=>e.kind===S.kind);
+  const kinds=[...new Set((S.events||[]).map(e=>e.kind))].sort();
+  return `<div class="filters">
+      <select aria-label="What" onchange="S.kind=this.value;draw()"><option value="">Everything but screen opens</option>${kinds.map(k=>`<option value="${esc(k)}"${S.kind===k?" selected":""}>${esc(kindOf(k).t)}</option>`).join("")}</select>
+      ${S.view?`<button class="btn" onclick="S.view='';draw()">${esc(SCREEN_NAME[S.view]||S.view)} ✕</button>`:""}
+    </div>
+    ${rows.length?`<div class="feed scroll">${rows.slice(0,200).map(evHtml).join("")}</div>`:`<div class="empty">Nothing here yet.</div>`}`;
+}
+function evHtml(e){
+  const K=kindOf(e.kind), d=e.data||{};
+  const what = e.kind==="view" ? "Opened "+(SCREEN_NAME[e.view]||e.view) : K.t;
+  const extra=evDetail(e.kind,d);
+  return `<div class="ev"><time>${new Date(e.at).toDateString()===new Date().toDateString()?hhmm(e.at):dshort(String(e.at).slice(0,10))}</time>
+    <span class="k ${K.k}" aria-hidden="true">${K.i}</span>
+    <div class="d"><b style="cursor:pointer" onclick="openPilot('${esc(e.user_id)}')">${esc(e.pilot||"?")}</b> <span class="faint">${esc(e.airline||"")}</span> · ${esc(what)}
+      <small>${extra}${e.view&&e.kind!=="view"?" · on "+esc(SCREEN_NAME[e.view]||e.view):""} · <span class="tag" style="padding:0 5px">${esc(vlabel(e.app_tag))}</span></small></div></div>`;
+}
+function evDetail(kind,d){
+  const b=[];
+  if(kind==="roster_import") b.push((d.month||"")+" · "+num(d.duties)+" duties, "+num(d.flights)+" flights"+(d.unknown?" · "+d.unknown+" unknown codes":"")+(d.parser?" · "+d.parser:""));
+  else if(kind==="logbook_import") b.push((d.format||"file")+" · "+num(d.rows)+" rows → "+num(d.added)+" added"+(d.skipped?", "+num(d.skipped)+" already there":"")+(d.kept?", "+num(d.kept)+" finished left alone":""));
+  else if(kind==="logbook_import_failed") b.push((d.format||"file")+" · "+(d.reason||""));
+  else if(kind==="bring_in") b.push(num(d.n)+" flights");
+  else if(kind==="error"||kind==="quiet_error") b.push(String(d.msg||d.what||"").slice(0,140));
+  else if(kind==="app_open") b.push((d.roster!=null?num(d.roster)+" duties":"")+(d.log!=null?" · "+num(d.log)+" logbook entries":"")+(d.build?" · app "+d.build:""));
+  else if(kind==="airline_request") b.push(String(d.airline||""));
+  else Object.keys(d).slice(0,3).forEach(k=>b.push(k+": "+String(d[k]).slice(0,40)));
+  return esc(b.filter(Boolean).join(" · "));
+}
+function pilotsHtml(){
+  const q=S.q.toLowerCase();
+  const rows=(S.pilots||[]).filter(p=>!q || [p.pilot,p.staff,p.airline].join(" ").toLowerCase().indexOf(q)>=0);
+  return `<div class="filters"><input type="search" placeholder="Name, staff number or airline" value="${esc(S.q)}" oninput="S.q=this.value;drawPilotsOnly()" aria-label="Find a pilot"></div>
+  <div id="pilotsT">${pilotsTable(rows)}</div>`;
+}
+function pilotsTable(rows){
+  if(!rows.length) return `<div class="empty">No pilots match.</div>`;
+  return `<div class="scroll"><table><thead><tr><th>Pilot</th><th>Airline</th><th>Rank</th><th class="num">Joined</th><th class="num">Last seen</th><th>Version</th><th class="num">Months</th><th class="num">Logbook</th><th class="num">Errors 7 d</th></tr></thead><tbody>
+    ${rows.slice(0,500).map(p=>`<tr class="tap" onclick="openPilot('${esc(p.id)}')">
+      <td><span class="who">${esc(p.pilot)}</span> <span class="faint">${p.staff?"#"+esc(p.staff):""}</span></td>
+      <td>${esc(p.airline)}</td><td class="muted">${esc(p.rank||"")}</td>
+      <td class="num muted">${ago(p.joined)}</td><td class="num">${ago(p.last_seen)}</td>
+      <td><span class="tag">${esc(vlabel(p.app_tag))}</span></td>
+      <td class="num">${+p.months?num(p.months):`<span class="tag warn">none</span>`}</td>
+      <td class="num">${p.log_entries?num(p.log_entries):"–"}</td>
+      <td class="num">${+p.errors_7d?`<span class="tag bad">${num(p.errors_7d)}</span>`:"–"}</td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+function drawPilotsOnly(){
+  const q=S.q.toLowerCase();
+  const el=document.getElementById("pilotsT"); if(el) el.innerHTML=pilotsTable((S.pilots||[]).filter(p=>!q || [p.pilot,p.staff,p.airline].join(" ").toLowerCase().indexOf(q)>=0));
+}
+
+/* ---------- one pilot ---------- */
+async function openPilot(id){
+  if(!id) return;
+  S.pilot={id, info:null, events:null}; draw();
+  try{
+    if(DEMO){ S.pilot.info=DEMO_PILOT(id); S.pilot.events=(S.events||[]).filter(e=>e.user_id===id); }
+    else{
+      const [info,events]=await Promise.all([tryRpc("admin_cr_pilot",{p_id:id},[]), tryRpc("admin_cr_events",{p_user:id,p_limit:300},[])]);
+      S.pilot.info=(info||[])[0]||{}; S.pilot.events=events||[];
+    }
+  }catch(e){ S.pilot.info={pilot:"Couldn't load: "+e.message}; S.pilot.events=[]; }
+  draw();
+}
+function drawerHtml(){
+  const P=S.pilot, i=P.info||{};
+  return `<div class="hd"><h3>${esc(i.pilot||"Loading…")} <span class="faint" style="font-weight:600;font-size:13px">${i.staff?"#"+esc(i.staff):""}</span></h3>
+      <button class="btn" onclick="S.pilot=null;draw()" aria-label="Close">✕</button></div>
+    <div class="bd">${!P.info?`<div class="empty">Loading…</div>`:`
+      <div class="muted" style="margin-bottom:12px">${esc(i.airline||"")} · ${esc(i.rank||"")} · ${esc(i.email||"")}<br>
+        joined ${ago(i.joined)} · last seen ${ago(i.online_seen||i.last_seen)}${i.online_view?" on "+esc(SCREEN_NAME[i.online_view]||i.online_view):""} · <span class="tag">${esc(vlabel(i.app_tag))}</span></div>
+      <div class="facts">
+        <div><b>${num(i.months)}</b><span>roster months${i.last_import?" · last "+ago(i.last_import):""}</span></div>
+        <div><b>${i.log_entries?num(i.log_entries):"–"}</b><span>logbook entries${i.log_minutes?" · "+hm(i.log_minutes):""}</span></div>
+        <div><b class="${+i.errors_7d?"":""}" style="${+i.errors_7d?"color:var(--bad-ink)":""}">${num(i.errors_7d)}</b><span>errors in 7 days</span></div>
+      </div>
+      <h2 style="font-size:13px;margin:6px 0 6px">Their timeline</h2>
+      ${(P.events||[]).length?`<div class="feed">${P.events.map(evHtml).join("")}</div>`:`<div class="empty">Nothing recorded yet. Records start with the version that sends them.</div>`}`}
+    </div>`;
+}
+
+/* ---------- the trend chart (one series, one axis) ---------- */
+function trendSvg(){
+  const rows=S.daily||[]; if(!rows.length) return `<div class="empty">No data yet.</div>`;
+  const key=S.chart, vals=rows.map(r=>+r[key]||0), max=Math.max(1,...vals);
+  const W=760, H=220, L=34, R=8, T=10, B=24, iw=W-L-R, ih=H-T-B, n=rows.length, bw=iw/n;
+  const nice=niceMax(max), ticks=[0,nice/2,nice];
+  const color = key==="errors" ? "var(--series-bad)" : "var(--series)";
+  const y=v=>T+ih-(v/nice)*ih;
+  let g=ticks.map(t=>`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(t)}" y2="${y(t)}"/><text class="ax" x="${L-6}" y="${y(t)+3.5}" text-anchor="end">${num(t)}</text>`).join("");
+  const step=Math.ceil(n/8);
+  g+=rows.map((r,i)=>i%step===0||i===n-1?`<text class="ax" x="${L+bw*i+bw/2}" y="${H-6}" text-anchor="middle">${dshort(String(r.day).slice(0,10))}</text>`:"").join("");
+  let marks="";
+  if(key==="active"){
+    const pts=vals.map((v,i)=>[L+bw*i+bw/2, y(v)]);
+    marks=`<path d="${pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join("")}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+      +`<circle cx="${pts[n-1][0]}" cy="${pts[n-1][1]}" r="4" fill="${color}" stroke="var(--card)" stroke-width="2"/>`;
+  } else {
+    marks=vals.map((v,i)=>{ if(!v) return ""; const x=L+bw*i+1, w=Math.max(1,bw-2), h=Math.max(2,(v/nice)*ih), r=Math.min(4,w/2,h);
+      const yy=T+ih-h; return `<path fill="${color}" d="M${x} ${T+ih}V${yy+r}Q${x} ${yy} ${x+r} ${yy}H${x+w-r}Q${x+w} ${yy} ${x+w} ${yy+r}V${T+ih}Z"/>`; }).join("");
+  }
+  const hits=rows.map((r,i)=>`<rect class="hit" x="${L+bw*i}" y="${T}" width="${bw}" height="${ih}" data-i="${i}"/>`).join("");
+  const last=vals[n-1], tot=vals.reduce((a,b)=>a+b,0);
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(key)} per day, last ${n} days. Today ${last}, total ${tot}.">${g}${marks}
+    <line id="xh" class="gl" x1="0" x2="0" y1="${T}" y2="${T+ih}" style="display:none;stroke:var(--faint)"/>${hits}</svg>
+    <div class="faint" style="font-size:12px;margin-top:4px">Today <b style="color:var(--ink)">${num(last)}</b> · ${n} days <b style="color:var(--ink)">${num(tot)}</b>${key==="active"?" pilot-days":""}</div>`;
+}
+function niceMax(v){ const p=Math.pow(10,Math.floor(Math.log10(Math.max(1,v)))); for(const m of [1,2,2.5,5,10]) if(m*p>=v) return m*p; return 10*p; }
+function wireChart(){
+  const tip=$("#tip"), svg=document.querySelector("#trend svg"); if(!svg) return;
+  const rows=S.daily||[], key=S.chart, xh=svg.querySelector("#xh");
+  const L=34, R=8, W=760, bw=(W-L-R)/rows.length;
+  svg.querySelectorAll(".hit").forEach(h=>{
+    h.addEventListener("mousemove",ev=>{ const i=+h.dataset.i, r=rows[i];
+      tip.innerHTML=`${dshort(String(r.day).slice(0,10))} · <b>${num(r[key])}</b> ${({active:"active pilots",signups:"sign-ups",errors:"errors",imports:"roster imports"})[key]}`;
+      tip.style.display="block"; tip.style.left=ev.clientX+"px"; tip.style.top=ev.clientY+"px";
+      xh.style.display=""; const x=L+bw*i+bw/2; xh.setAttribute("x1",x); xh.setAttribute("x2",x); });
+    h.addEventListener("mouseleave",()=>{ tip.style.display="none"; xh.style.display="none"; });
+  });
+}
+
+/* ---------- signing in ---------- */
+function gateHtml(){
+  return `<div class="gate"><h1>Control room</h1><p>RosterView, for its owner. Sign in with your RosterView account.</p>
+    <form id="gf"><label class="sr" for="ge">Email</label><input id="ge" type="email" autocomplete="username" placeholder="Email" required>
+      <label class="sr" for="gp">Password</label><input id="gp" type="password" autocomplete="current-password" placeholder="Password" required>
+      <button class="btn primary" type="submit">Sign in</button><div class="err" id="gerr" role="alert"></div></form>
+    <p style="margin-top:18px;font-size:12.5px">Only the owner's account sees anything here. <a href="#demo" onclick="setTimeout(()=>location.reload(),0)">See it with made-up data</a></p></div>`;
+}
+function wireGate(){
+  const f=$("#gf"); if(!f) return;
+  f.onsubmit=async ev=>{ ev.preventDefault(); $("#gerr").textContent="";
+    try{ await signIn($("#ge").value.trim(), $("#gp").value);
+      const ok=await rpc("is_admin",{}).catch(()=>false);
+      if(ok!==true){ setSess(null); $("#gerr").textContent="That account is not the owner's."; return; }
+      S.loadedAt=0; draw(); await load(); startLive();
+    }catch(e){ $("#gerr").textContent=e.message; } };
+}
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+  const next=cur==="dark"?"light":"dark"; document.documentElement.setAttribute("data-theme",next);
+  try{ localStorage.setItem("rvcr_theme",next); }catch(e){}
+}
+try{ const t=localStorage.getItem("rvcr_theme"); if(t) document.documentElement.setAttribute("data-theme",t); }catch(e){}
+if(/[?&]theme=(dark|light)/.test(location.search)) document.documentElement.setAttribute("data-theme",RegExp.$1);
+
+/* ============================================================================
+   DEMO — made-up pilots, so the page can be seen before the database has
+   anything in it. Nobody here is real.
+   ========================================================================= */
+let DEMO_PILOT=()=>({});
+function demoData(){
+  let seed=7; const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
+  const now=Date.now(), min=60000, day=86400000;
+  const names=[["Sam Taylor","AJX","First Officer"],["Kenji Sato","AJX","Captain"],["Aiko Tanaka","AJX","First Officer"],["Marta Ruiz","Air Europa","First Officer"],
+    ["David Miller","AJX","Captain"],["Priya Nair","AJX","First Officer"],["Lena Novak","Air Europa","Captain"],["Chris Lee","AJX","First Officer"],
+    ["Omar Haddad","Oman Air","First Officer"],["Tom Brown","AJX","Second Officer"],["Yuki Mori","ANA","First Officer"],["Jonas Berg","Air Europa","First Officer"]];
+  S.pilots=names.map((n,i)=>({id:"p"+i, pilot:n[0], staff:String(20000+i*137), airline:n[1], rank:n[2],
+    joined:new Date(now-(5+i*9)*day).toISOString(), last_seen:new Date(now-(i<5?i*2*min:i*7*3600000)).toISOString(),
+    app_tag:i<7?"R167":"R166", months:i===8||i===11?0:1+(i%4), log_entries:i===0?912:(i===3?140:(i===5?36:null)), errors_7d:i===3?2:(i===8?1:0)}));
+  const views=["month","month","month","crew","list","log","swap","proof","settings","import","pilot","compare"];
+  S.online=[0,1,2,3,5].map((i,j)=>({user_id:"p"+i, pilot:names[i][0], staff:S.pilots[i].staff, airline:names[i][1],
+    view:["month","log","crew","import","swap"][j], app_tag:"R167", since:new Date(now-(8+j*11)*min).toISOString(), seen_at:new Date(now-(j===4?9:0.5)*min).toISOString()}));
+  S.daily=[...Array(60)].map((_,i)=>{ const d=new Date(now-(59-i)*day); const base=6+Math.round(i/5);
+    return {day:d.toISOString().slice(0,10), signups:rnd()<.35?1+Math.round(rnd()*2):0, active:Math.max(1,base+Math.round(rnd()*5-2)),
+      events:base*30, errors:rnd()<.2?Math.round(rnd()*4):0, imports:Math.round(rnd()*4)}; });
+  const ev=[], add=(m,i,kind,view,data)=>ev.push({id:ev.length, at:new Date(now-m*min).toISOString(), user_id:"p"+i, pilot:names[i][0], airline:names[i][1], kind, view, app_tag:i<7?"R167":"R166", data});
+  add(1,0,"view","log"); add(2,1,"view","month"); add(3,3,"logbook_import_failed","log",{format:"LogTen Pro CSV",reason:"no date column found",rows:0});
+  add(4,3,"view","log"); add(6,2,"bring_in","log",{n:9}); add(9,5,"roster_import","import",{month:"2026-11",duties:31,flights:12,parser:"CIS"});
+  add(14,8,"airline_request","settings",{airline:"Oman Air"}); add(18,0,"logbook_import","log",{format:"CrewLounge CSV",rows:897,added:897,skipped:0});
+  add(22,6,"error","crew",{msg:"TypeError: Cannot read properties of undefined (reading 'roster')",src:"renderCrew"});
+  add(25,3,"error","log",{msg:"TypeError: Cannot read properties of undefined (reading 'roster')",src:"renderCrew"});
+  add(31,11,"import_empty","import",{parser:"PORTRI",reason:"no roster table on the page"}); add(40,4,"app_open","month",{roster:44,log:0,build:"1.0.4"});
+  add(55,9,"signup","gate"); add(70,7,"swap_request","swap"); add(90,2,"pdf_export","log",{pages:6}); add(120,1,"compare","compare");
+  add(160,10,"signin","gate"); add(200,5,"flight_saved","log"); add(260,0,"quiet_error","month",{what:"widget update",msg:"App Group not available"});
+  S.events=ev;
+  S.errors=[{msg:"TypeError: Cannot read properties of undefined (reading 'roster')", times:5, pilots:2, first_at:new Date(now-3*day).toISOString(), last_at:new Date(now-22*min).toISOString(), versions:"R166, R167", views:"crew, log", sample:{src:"renderCrew"}},
+            {msg:"widget update: App Group not available", times:3, pilots:1, first_at:new Date(now-day).toISOString(), last_at:new Date(now-260*min).toISOString(), versions:"R167", views:"month", sample:{}}];
+  S.screens=[{view:"month",opens:310,pilots:11},{view:"crew",opens:140,pilots:9},{view:"list",opens:66,pilots:7},{view:"swap",opens:41,pilots:5},
+             {view:"log",opens:88,pilots:4},{view:"import",opens:29,pilots:8},{view:"proof",opens:18,pilots:4},{view:"settings",opens:22,pilots:6},
+             {view:"pilot",opens:37,pilots:6},{view:"compare",opens:12,pilots:3},{view:"gate",opens:5,pilots:2},{view:"portal",opens:24,pilots:7}];
+  S.funnel=[{step:1,label:"Signed up",pilots:12},{step:2,label:"Chose an airline",pilots:12},{step:3,label:"Imported a roster",pilots:10},
+            {step:4,label:"Back a second day",pilots:9},{step:5,label:"Opened Crew",pilots:9},{step:6,label:"Started a logbook",pilots:3}];
+  S.requests=[{airline:"Oman Air", pilot:"Omar Haddad", status:"new", samples:2, updated_at:new Date(now-14*min).toISOString()}];
+  S.sum={pilots:12, online_now:4, active_today:8, active_7d:11, signups_today:0, signups_7d:2, signups_30d:5, never_imported:2,
+         errors_24h:3, error_pilots_24h:2, airlines:4, logbooks:3, logbook_entries:1088};
+  S.loadedAt=now;
+  DEMO_PILOT=id=>{ const p=S.pilots.find(x=>x.id===id)||{}; return Object.assign({}, p, {email:p.pilot?p.pilot.toLowerCase().replace(/ /g,".")+"@example.test":"",
+    last_import:p.months?new Date(now-2*day).toISOString():null, log_minutes:p.log_entries?p.log_entries*318:0,
+    online_view:(S.online.find(o=>o.user_id===id)||{}).view, online_seen:(S.online.find(o=>o.user_id===id)||{}).seen_at}); };
+}
+
+/* ---------- go ---------- */
+draw();
+if(DEMO || sess()){ load(); startLive(); }
+window.addEventListener("hashchange",()=>location.reload());
+</script>
+</body>
+</html>
