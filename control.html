@@ -147,6 +147,27 @@ tr.tap{cursor:pointer} tr.tap:hover td{background:var(--fill)}
 .facts b{display:block; font-size:16px; font-weight:800; font-variant-numeric:tabular-nums}
 .facts span{font-size:11.5px; color:var(--sub); font-weight:600}
 
+/* the owner's controls */
+.row-form{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px}
+.row-form select,.row-form input,.row-form textarea{border:1px solid var(--line); background:var(--card); border-radius:8px; padding:5px 8px; font-size:12.5px}
+.row-form textarea{width:100%; min-height:54px; resize:vertical}
+.btn.sm{padding:4px 9px; font-size:12px; border-radius:8px; white-space:nowrap}
+.overlay{position:fixed; inset:0; z-index:60; background:rgba(5,8,14,.55); display:flex; align-items:stretch; justify-content:center; padding:24px}
+.ov{background:var(--card); border-radius:16px; width:min(1360px,100%); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line)}
+.ov .hd{display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--line)}
+.ov .hd h3{margin:0; font-size:16px; flex:1}
+.ov .bd{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:0; flex:1; min-height:0}
+.ov .pane{overflow:auto; padding:14px 18px; min-height:0}
+.ov .pane + .pane{border-left:1px solid var(--line)}
+.ov iframe{width:100%; height:100%; min-height:70vh; border:1px solid var(--line); border-radius:10px; background:#fff}
+.ov img{max-width:100%; border-radius:10px; border:1px solid var(--line)}
+.dayr{display:grid; grid-template-columns:86px minmax(0,1fr); gap:10px; padding:6px 0; border-top:1px solid var(--line); font-size:12.5px}
+.dayr.blank{background:color-mix(in srgb,var(--warn) 12%,transparent)}
+.dayr.unk{background:color-mix(in srgb,var(--bad) 9%,transparent)}
+.dayr b{font-weight:700}
+.duty{display:flex; gap:6px; align-items:baseline; flex-wrap:wrap}
+@media (max-width:900px){ .ov .bd{grid-template-columns:1fr} .ov .pane + .pane{border-left:none; border-top:1px solid var(--line)} }
+
 /* signing in */
 .gate{max-width:380px; margin:12vh auto; text-align:center}
 .gate h1{font-size:24px; margin:0 0 6px}
@@ -256,6 +277,17 @@ async function rpc(fn, args){
   if(!r.ok){ const b=await r.json().catch(()=>({})); const e=new Error(b.message||("HTTP "+r.status)); e.code=b.code; throw e; }
   return r.json();
 }
+async function rest(path){
+  let s=sess(); if(!s) throw new Error("signed out");
+  if(Date.now() > (s.expires_at_ms||0)-60000) s=await renew()||s;
+  const r=await fetch(SB_URL+"/rest/v1/"+path,{headers:{"apikey":SB_KEY,"Authorization":"Bearer "+(sess()||{}).access_token}});
+  if(!r.ok){ const b=await r.json().catch(()=>({})); const e=new Error(b.message||("HTTP "+r.status)); e.code=b.code; throw e; }
+  return r.json();
+}
+async function tryRest(path, fallback, name){
+  try{ return await rest(path); }
+  catch(e){ if(/does not exist|42P01|PGRST205|Could not find/i.test(String(e.message)+e.code)){ S.missing.add(name||path); return fallback; } throw e; }
+}
 /* A function the server does not have yet is not an error on this page: it is
    "run part NN". Everything else says what went wrong. */
 async function tryRpc(fn, args, fallback){
@@ -264,12 +296,16 @@ async function tryRpc(fn, args, fallback){
 }
 
 /* ---------- state ---------- */
-const S={sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
+const S={codes:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
+         sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
          missing:new Set(), view:"", kind:"", q:"", chart:"active", loadedAt:0, err:"", pilot:null, timer:null};
 
 async function load(){
   if(DEMO){ demoData(); draw(); return; }
   try{
+    const [codes,named,imports,airlines]=await Promise.all([tryRpc("admin_cr_codes",{},[]), tryRest("airline_codes?select=*&order=airline,code",[],"airline_codes"),
+      tryRpc("admin_cr_imports",{p_limit:200},[]), tryRpc("admin_airlines",{},[])]);
+    Object.assign(S,{codes:codes||[], named:named||[], imports:imports||[], airlines:airlines||[]});
     const [sum,daily,online,events,errors,screens,funnel,pilots,requests]=await Promise.all([
       tryRpc("admin_cr_summary",{},[]), tryRpc("admin_cr_daily",{p_days:60},[]), tryRpc("admin_cr_online",{p_minutes:15},[]),
       tryRpc("admin_cr_events",{p_limit:300},[]), tryRpc("admin_cr_errors",{p_days:14},[]), tryRpc("admin_cr_screens",{p_days:7},[]),
@@ -316,10 +352,18 @@ function draw(){
       <section class="card c7" aria-labelledby="hFeed"><h2 id="hFeed">Activity</h2><div class="cap">What happened, newest first</div>${feedHtml()}</section>
       <section class="card c5" aria-labelledby="hScr"><h2 id="hScr">Screens used</h2><div class="cap">Pilots who opened each screen, last 7 days</div>${screensHtml()}</section>
 
+      <section class="card c7" aria-labelledby="hCodes"><h2 id="hCodes">Duty codes the app can't name</h2>
+        <div class="cap">From every pilot's roster. Name one and every pilot at that airline gets it the next time the app opens — including the days already showing Unknown.</div>${codesHtml()}</section>
+      <section class="card c5" aria-labelledby="hImp"><h2 id="hImp">Imports</h2>
+        <div class="cap">Every roster brought in, newest first. Blank days are days the page had and the app read nothing for. Click one to see the original beside what was read.</div>${importsHtml()}</section>
+      <section class="card c12" aria-labelledby="hReq"><h2 id="hReq">Airline requests</h2>
+        <div class="cap">Pilots asking for their airline. Your reply and the status show in their app.</div>${requestsHtml()}</section>
+
       <section class="card c12" aria-labelledby="hPil"><h2 id="hPil">Pilots</h2><div class="cap">${num(S.pilots.length)} · click one for everything about them</div>${pilotsHtml()}</section>
     </div>
   </div>
-  <aside class="drawer${S.pilot?" open":""}" id="drawer" aria-label="Pilot">${S.pilot?drawerHtml():""}</aside>`;
+  <aside class="drawer${S.pilot?" open":""}" id="drawer" aria-label="Pilot">${S.pilot?drawerHtml():""}</aside>
+  ${S.imp?importOverlayHtml():""}`;
   [...document.querySelectorAll(".scroll")].forEach((x,i)=>{ if(keepScroll[i]) x.scrollTop=keepScroll[i]; });
   wireChart();
 }
@@ -381,7 +425,7 @@ function dur(a,b){ const m=Math.max(0,Math.round((new Date(b)-new Date(a))/60000
 function needHtml(){
   const out=[];
   (S.requests||[]).filter(r=>r.status==="new").forEach(r=>out.push({at:r.updated_at, dot:"warn",
-    t:`${esc(r.airline)} — ${esc(r.pilot)} wants their airline added`, s:`${num(r.samples)} file${+r.samples===1?"":"s"} · answer it in the app, admin mode → Requests`}));
+    t:`${esc(r.airline)} — ${esc(r.pilot)} wants their airline added`, s:`${num(r.samples)} file${+r.samples===1?"":"s"} · answer it below, in Airline requests`}));
   (S.events||[]).filter(e=>e.kind==="logbook_import_failed").slice(0,8).forEach(e=>out.push({at:e.at, dot:"bad", uid:e.user_id,
     t:`${esc(e.pilot)}'s old logbook would not import`, s:esc(((e.data||{}).reason||"")+((e.data||{}).format?" · "+(e.data||{}).format:""))}));
   (S.events||[]).filter(e=>e.kind==="import_empty"||e.kind==="import_failed").slice(0,8).forEach(e=>out.push({at:e.at, dot:"bad", uid:e.user_id,
@@ -475,6 +519,161 @@ function drawPilotsOnly(){
   const el=document.getElementById("pilotsT"); if(el) el.innerHTML=pilotsTable((S.pilots||[]).filter(p=>!q || [p.pilot,p.staff,p.airline].join(" ").toLowerCase().indexOf(q)>=0));
 }
 
+/* ---------- duty codes ---------- */
+const CODE_TYPES=[["ground","Ground duty"],["off","Day off"],["standby","Standby"],["sim","Simulator"],["flight","Flight"],
+                  ["transport","Transport"],["hotel","Hotel"],["rest","Rest"],["absent","Absent / leave"]];
+function codesHtml(){
+  const rows=S.codes||[];
+  const named=(S.named||[]);
+  const form=(c)=>{ const f=S.codeForm||{}; return `<div class="row-form">
+      <select aria-label="What ${esc(c.code)} is" id="cfType">${CODE_TYPES.map(([k,l])=>`<option value="${k}"${(f.type||c.named_type||"ground")===k?" selected":""}>${l}</option>`).join("")}</select>
+      <input id="cfLabel" aria-label="Name for ${esc(c.code)}" placeholder="What the pilot should read, e.g. Medical check" value="${esc(f.label||c.named_label||(c.labels&&c.labels[0])||"")}" style="flex:1;min-width:180px">
+      <button class="btn sm primary" onclick="saveCode('${esc(c.airline)}','${esc(c.code)}')">Save for every ${esc(c.airline)} pilot</button>
+      <button class="btn sm" onclick="S.codeForm=null;draw()">Cancel</button></div>`; };
+  const list = !rows.length ? `<div class="empty">Every code on every roster has a name.</div>`
+   : `<div class="scroll" style="max-height:420px"><table><thead><tr><th>Airline</th><th>Code</th><th>What the roster said</th><th class="num">Seen</th><th class="num">Last</th><th>Status</th><th></th></tr></thead><tbody>
+    ${rows.map(c=>{ const open=S.codeForm&&S.codeForm.airline===c.airline&&S.codeForm.code===c.code;
+      return `<tr><td>${esc(c.airline)}</td><td><b style="font-family:ui-monospace,Menlo,monospace">${esc(c.code)}</b></td>
+      <td class="muted">${esc((c.labels||[]).join(" · ")||"–")}${(c.times_seen||[]).length?`<br><span class="faint">${esc(c.times_seen.join(" · "))}</span>`:""}
+        ${open?form(c):""}</td>
+      <td class="num">${num(c.times)}<br><span class="faint">${num(c.pilots)} pilot${+c.pilots===1?"":"s"}</span></td>
+      <td class="num muted" style="white-space:nowrap">${c.last_seen?esc(dshort(String(c.last_seen).slice(0,10))):""}</td>
+      <td>${c.named_type?`<span class="tag good">named: ${esc(c.named_label)}</span><br><span class="faint" style="font-size:11.5px">reaches phones on next open</span>`
+            :(+c.guessed===+c.times?`<span class="tag warn">guessed</span>`:`<span class="tag bad">unknown</span>`)}</td>
+      <td>${open?"":`<button class="btn sm" onclick="S.codeForm={airline:'${esc(c.airline)}',code:'${esc(c.code)}'};draw()">${c.named_type?"Change":"Name it"}</button>`}</td></tr>`; }).join("")}
+   </tbody></table></div>`;
+  const done = named.length ? `<details style="margin-top:10px"><summary class="muted" style="cursor:pointer;font-size:12.5px">${num(named.length)} code${named.length===1?"":"s"} you have named</summary>
+    <table style="margin-top:6px"><tbody>${named.map(n=>`<tr><td>${esc(n.airline)}</td><td><b style="font-family:ui-monospace,Menlo,monospace">${esc(n.code)}</b></td>
+      <td>${esc(n.label)} <span class="faint">${esc(n.type)}</span></td><td class="num muted">${ago(n.updated_at)}</td>
+      <td class="num"><button class="btn sm" onclick="deleteCode('${esc(n.airline)}','${esc(n.code)}')">Remove</button></td></tr>`).join("")}</tbody></table></details>` : "";
+  return list+done;
+}
+async function saveCode(airline, code){
+  const type=(document.getElementById("cfType")||{}).value, label=((document.getElementById("cfLabel")||{}).value||"").trim();
+  if(!label){ alert("Give it a name the pilot will read."); return; }
+  if(DEMO){ const c=S.codes.find(x=>x.airline===airline&&x.code===code); if(c){ c.named_type=type; c.named_label=label; }
+    S.named=S.named.filter(n=>!(n.airline===airline&&n.code===code)).concat([{airline,code,type,label,updated_at:new Date().toISOString()}]); S.codeForm=null; draw(); return; }
+  try{ await rpc("admin_code_set",{p_airline:airline, p_code:code, p_type:type, p_label:label, p_about:null}); S.codeForm=null; await load(); }
+  catch(e){ alert("Couldn't save: "+e.message); }
+}
+async function deleteCode(airline, code){
+  if(!confirm("Remove "+code+" for "+airline+"? Phones keep the name they already have until the roster is imported again.")) return;
+  if(DEMO){ S.named=S.named.filter(n=>!(n.airline===airline&&n.code===code)); draw(); return; }
+  try{ await rpc("admin_code_delete",{p_airline:airline, p_code:code}); await load(); }catch(e){ alert(e.message); }
+}
+
+/* ---------- imports: the original beside what was read ---------- */
+function importsHtml(){
+  const rows=S.imports||[]; if(!rows.length) return `<div class="empty">No imports yet.</div>`;
+  return `<div class="scroll" style="max-height:420px"><table><thead><tr><th>Pilot</th><th>Month</th><th class="num">Duties</th><th>Problems</th><th class="num">When</th></tr></thead><tbody>
+    ${rows.map(i=>`<tr class="tap" onclick="openImport(${i.report_id?+i.report_id:"null"},'${esc(i.user_id)}','${esc(i.month||"")}')">
+      <td><span class="who">${esc(i.pilot)}</span> <span class="faint">${esc(i.airline)}</span></td>
+      <td>${esc(i.month||"?")}</td><td class="num">${num(i.duties_out)}<br><span class="faint">${num(i.flights)} flights</span></td>
+      <td>${+i.blank_days?`<span class="tag warn">${num(i.blank_days)} blank</span> `:""}${+i.unknown?`<span class="tag bad">${num(i.unknown)} unknown</span>`:""}${!+i.blank_days&&!+i.unknown?`<span class="tag good">clean</span>`:""}
+        ${i.report_id?"":`<br><span class="faint" style="font-size:11.5px">no page kept</span>`}</td>
+      <td class="num muted">${ago(i.at)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+async function openImport(id, user, month){
+  S.imp={id, user, month, rep:null, err:""}; draw();
+  if(!id){ S.imp.err="The page for this month was not kept (an older version, or the pilot deleted their pages)."; draw(); return; }
+  try{
+    if(DEMO) S.imp.rep=DEMO_REPORT(month);
+    else { const r=await rpc("admin_report",{p_id:id}); S.imp.rep=(r||[])[0]||null; if(!S.imp.rep) S.imp.err="Not found."; }
+  }catch(e){ S.imp.err=e.message; }
+  draw();
+}
+function importOverlayHtml(){
+  const I=S.imp, R=I.rep;
+  let left="", right="";
+  if(I.err) left=`<div class="empty">${esc(I.err)}</div>`;
+  else if(!R) left=`<div class="empty">Loading…</div>`;
+  else {
+    left = R.image ? `<img src="${esc(R.image)}" alt="The roster page as the pilot's airline showed it">`
+         : R.snapshot ? `<iframe sandbox="" title="The roster page as captured" srcdoc="${esc(R.snapshot)}"></iframe>` : `<div class="empty">No page in this import.</div>`;
+    const items=Array.isArray(R.parsed)?R.parsed:[];
+    const ym=String(R.month||I.month||"").slice(0,7);
+    const byDay={}; items.forEach(d=>{ const k=String(d.date||""); (byDay[k]=byDay[k]||[]).push(d); });
+    let days=[];
+    if(/^\d{4}-\d{2}$/.test(ym)){ const [y,m]=ym.split("-").map(Number), n=new Date(y,m,0).getDate();
+      for(let d=1; d<=n; d++) days.push(ym+"-"+String(d).padStart(2,"0")); }
+    else days=Object.keys(byDay).sort();
+    const blank=days.filter(d=>!(byDay[d]||[]).length).length, unk=items.filter(d=>d.type==="unknown").length;
+    right=`<div class="faint" style="margin-bottom:8px">${esc(R.airline||"")} · ${esc(R.parser||"")} · ${num(items.length)} duties ·
+        <span class="tag warn">${blank} blank day${blank===1?"":"s"}</span> <span class="tag bad">${unk} unknown</span></div>
+      ${days.map(d=>{ const L=byDay[d]||[]; const isUnk=L.some(x=>x.type==="unknown");
+        return `<div class="dayr${!L.length?" blank":(isUnk?" unk":"")}"><b>${esc(new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"}))}</b>
+          <div>${!L.length?`<span class="muted">Unallocated — nothing was read for this day</span>`:L.map(x=>`<div class="duty">
+            <span class="tag ${x.type==="unknown"?"bad":(x.guessed?"warn":"")}">${esc(x.type||"?")}</span>
+            <b>${esc(x.code||x.no||"")}</b> <span class="muted">${esc(x.label||((x.from||"")+(x.to?"–"+x.to:"")))}</span>
+            <span class="faint">${esc([x.start||x.dep, x.end||x.arr].filter(Boolean).join("–"))}</span>
+            ${(x.type==="unknown"||x.guessed)&&x.code?`<button class="btn sm" onclick="nameFromImport('${esc(R.airline||"")}','${esc(String(x.code).toUpperCase())}')">Name it</button>`:""}</div>`).join("")}</div></div>`; }).join("")}`;
+  }
+  return `<div class="overlay" onclick="if(event.target===this){S.imp=null;draw()}"><div class="ov" role="dialog" aria-label="Import">
+    <div class="hd"><h3>${esc((S.imports.find(x=>x.report_id===I.id)||{}).pilot||"Import")} · ${esc(I.month||"")}</h3>
+      <span class="faint" style="font-size:12.5px">Left: the page as their airline showed it. Right: what the app read, day by day.</span>
+      <button class="btn" onclick="S.imp=null;draw()" aria-label="Close">✕</button></div>
+    <div class="bd"><div class="pane">${left}</div><div class="pane">${right}</div></div></div></div>`;
+}
+function nameFromImport(airline, code){
+  S.imp=null;
+  if(!S.codes.some(c=>c.airline===airline&&c.code===code)) S.codes.unshift({airline, code, times:1, pilots:1, labels:[], times_seen:[], guessed:0});
+  S.codeForm={airline, code}; draw();
+  const el=document.getElementById("hCodes"); if(el) el.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+/* ---------- airline requests ---------- */
+const REQ_WORD={new:"New", working:"Working on it", need:"Waiting on pilot", ready:"Ready", closed:"Closed"};
+function requestsHtml(){
+  const rows=S.requests||[]; if(!rows.length) return `<div class="empty">No airline requests.</div>`;
+  return `<div class="scroll" style="max-height:520px"><table><thead><tr><th>Airline</th><th>Pilot</th><th>Roster page</th><th>Files</th><th>Status and reply</th></tr></thead><tbody>
+    ${rows.map(r=>{ const files=S.reqFiles[r.id];
+      return `<tr><td><b>${esc(r.airline)}</b><br><span class="faint">${esc(r.crew_system||"")}</span></td>
+      <td><span class="who" style="cursor:pointer" onclick="openPilot('${esc(r.user_id)}')">${esc(r.pilot)}</span><br><span class="faint">${esc(r.email||"")}</span>
+        ${r.notes?`<br><span class="muted">“${esc(r.notes)}”</span>`:""}</td>
+      <td>${r.portal_url?`<a href="${esc(r.portal_url)}" target="_blank" rel="noopener noreferrer">${esc(String(r.portal_url).replace(/^https?:\/\//,"").slice(0,48))}</a>`:(r.no_website?"no website":"–")}</td>
+      <td>${+r.samples?(files?files.map(f=>`<a href="#" onclick="event.preventDefault();openSample(${+f.id})">${esc(f.name||"file")}</a>`).join("<br>")
+            :`<button class="btn sm" onclick="loadSamples('${esc(r.id)}')">${num(r.samples)} file${+r.samples===1?"":"s"}</button>`):"–"}</td>
+      <td style="min-width:300px"><div class="row-form">
+          <select id="rqS_${esc(r.id)}" aria-label="Status">${Object.keys(REQ_WORD).map(k=>`<option value="${k}"${r.status===k?" selected":""}>${REQ_WORD[k]}</option>`).join("")}</select>
+          <span class="faint">${ago(r.updated_at)}</span></div>
+        <div class="row-form"><textarea id="rqR_${esc(r.id)}" placeholder="Reply — the pilot reads this in the app">${esc(r.reply||"")}</textarea></div>
+        <div class="row-form"><button class="btn sm primary" onclick="saveRequest('${esc(r.id)}')">Save</button></div></td></tr>`; }).join("")}
+  </tbody></table></div>`;
+}
+async function loadSamples(id){
+  try{ S.reqFiles[id] = DEMO ? [{id:1,name:"October roster.pdf"},{id:2,name:"IMG_2231.jpg"}]
+       : await rest("airline_samples?select=id,name,mime,bytes&request_id=eq."+encodeURIComponent(id)+"&order=id"); draw(); }
+  catch(e){ alert(e.message); }
+}
+async function openSample(id){
+  if(DEMO){ alert("In the real control room this opens the file."); return; }
+  try{ const r=(await rest("airline_samples?select=name,data&id=eq."+(+id)))[0]; if(!r||!r.data) return;
+    const a=document.createElement("a"); a.href=r.data; a.download=r.name||"sample"; a.target="_blank"; document.body.appendChild(a); a.click(); a.remove(); }
+  catch(e){ alert(e.message); }
+}
+async function saveRequest(id){
+  const st=(document.getElementById("rqS_"+id)||{}).value, rp=((document.getElementById("rqR_"+id)||{}).value||"").trim();
+  if(st==="need" && !rp){ alert("Say what you need in the reply — that is what they read."); return; }
+  if(DEMO){ const r=S.requests.find(x=>x.id===id); if(r){ r.status=st; r.reply=rp; r.updated_at=new Date().toISOString(); } draw(); return; }
+  try{ await rpc("admin_airline_request_set",{p_id:id, p_status:st, p_reply:rp}); await load(); }catch(e){ alert(e.message); }
+}
+
+/* ---------- moving a pilot to another airline ---------- */
+function airlineChoices(cur){
+  const set=new Set((S.airlines||[]).map(a=>a.airline).filter(a=>a && a!=="(not said)"));
+  (S.pilots||[]).forEach(p=>{ if(p.airline && p.airline!=="?") set.add(p.airline); });
+  if(cur) set.add(cur);
+  return [...set].sort();
+}
+async function moveAirline(id){
+  const sel=document.getElementById("mvAir"), typed=((document.getElementById("mvAirT")||{}).value||"").trim().toUpperCase();
+  const to=typed || (sel&&sel.value) || "";
+  if(!to){ alert("Choose an airline."); return; }
+  if(!confirm("Move this pilot to "+to+"?\n\nThey see that airline's crew and use its roster reading from their next launch.")) return;
+  if(DEMO){ const p=S.pilots.find(x=>x.id===id); if(p) p.airline=to; if(S.pilot&&S.pilot.info) S.pilot.info.airline=to; draw(); return; }
+  try{ await rpc("admin_set_airline",{p_user:id, p_airline:to}); await load(); await openPilot(id); }catch(e){ alert(e.message); }
+}
+
 /* ---------- one pilot ---------- */
 async function openPilot(id){
   if(!id) return;
@@ -500,6 +699,11 @@ function drawerHtml(){
         <div><b>${i.log_entries?num(i.log_entries):"–"}</b><span>logbook entries${i.log_minutes?" · "+hm(i.log_minutes):""}</span></div>
         <div><b class="${+i.errors_7d?"":""}" style="${+i.errors_7d?"color:var(--bad-ink)":""}">${num(i.errors_7d)}</b><span>errors in 7 days</span></div>
       </div>
+      <h2 style="font-size:13px;margin:6px 0 6px">Airline</h2>
+      <div class="row-form" style="margin-bottom:14px">
+        <select id="mvAir" aria-label="Airline">${airlineChoices(i.airline).map(a=>`<option${a===i.airline?" selected":""}>${esc(a)}</option>`).join("")}</select>
+        <input id="mvAirT" placeholder="or type a code" aria-label="Another airline code" style="width:120px" maxlength="12">
+        <button class="btn sm primary" onclick="moveAirline('${esc(P.id)}')">Move</button></div>
       <h2 style="font-size:13px;margin:6px 0 6px">Their timeline</h2>
       ${(P.events||[]).length?`<div class="feed">${P.events.map(evHtml).join("")}</div>`:`<div class="empty">Nothing recorded yet. Records start with the version that sends them.</div>`}`}
     </div>`;
@@ -574,7 +778,7 @@ if(/[?&]theme=(dark|light)/.test(location.search)) document.documentElement.setA
    DEMO — made-up pilots, so the page can be seen before the database has
    anything in it. Nobody here is real.
    ========================================================================= */
-let DEMO_PILOT=()=>({});
+let DEMO_PILOT=()=>({}), DEMO_REPORT=()=>null;
 function demoData(){
   let seed=7; const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
   const now=Date.now(), min=60000, day=86400000;
@@ -610,7 +814,28 @@ function demoData(){
   S.requests=[{airline:"Oman Air", pilot:"Omar Haddad", status:"new", samples:2, updated_at:new Date(now-14*min).toISOString()}];
   S.sum={pilots:12, online_now:4, active_today:8, active_7d:11, signups_today:0, signups_7d:2, signups_30d:5, never_imported:2,
          errors_24h:3, error_pilots_24h:2, airlines:4, logbooks:3, logbook_entries:1088};
+  S.codes=[{airline:"UX",code:"RDP",times:14,pilots:5,first_seen:"2026-09-02",last_seen:"2026-10-28",guessed:14,labels:["RESERVA DOMICILIO"],times_seen:["06:00–14:00"]},
+           {airline:"UX",code:"FMC",times:6,pilots:3,first_seen:"2026-09-11",last_seen:"2026-10-19",guessed:0,labels:["FORMACION CRM"],times_seen:["09:00–17:00"]},
+           {airline:"AJX",code:"MED",times:4,pilots:4,first_seen:"2026-10-01",last_seen:"2026-11-12",guessed:4,labels:["MEDICAL CHECK"],times_seen:["10:00–12:00"]},
+           {airline:"OMAN AIR",code:"X",times:9,pilots:1,first_seen:"2026-10-01",last_seen:"2026-10-30",guessed:0,labels:[],times_seen:[]},
+           {airline:"AJX",code:"GSG",times:2,pilots:2,first_seen:"2026-11-03",last_seen:"2026-11-04",guessed:2,labels:["GROUND SCHOOL G"],times_seen:["09:00–17:00"],named_type:"ground",named_label:"Ground School G"}];
+  S.named=[{airline:"AJX",code:"GSG",type:"ground",label:"Ground School G",updated_at:new Date(now-2*day).toISOString()}];
+  S.imports=[{user_id:"p11",at:new Date(now-31*min).toISOString(),pilot:"Jonas Berg",airline:"UX",parser:"PORTRI",month:"2026-10",rows_in:0,duties_out:0,flights:0,unknown:0,blank_days:31,report_id:91},
+             {user_id:"p5",at:new Date(now-9*min).toISOString(),pilot:"Priya Nair",airline:"AJX",parser:"CIS",month:"2026-11",rows_in:31,duties_out:31,flights:12,unknown:0,blank_days:0,report_id:92},
+             {user_id:"p3",at:new Date(now-3*3600000).toISOString(),pilot:"Marta Ruiz",airline:"UX",parser:"PORTRI",month:"2026-10",rows_in:29,duties_out:27,flights:14,unknown:3,blank_days:2,report_id:93},
+             {user_id:"p6",at:new Date(now-day).toISOString(),pilot:"Lena Novak",airline:"UX",parser:"PORTRI",month:"2026-10",rows_in:30,duties_out:30,flights:11,unknown:1,blank_days:0,report_id:null}];
+  S.airlines=[{airline:"AJX"},{airline:"ANA"},{airline:"UX"},{airline:"OMAN AIR"}];
+  S.requests=[{id:"rq1",user_id:"p8",airline:"Oman Air",pilot:"Omar Haddad",email:"omar.haddad@example.test",status:"new",samples:2,crew_system:"AIMS / eCrew",
+               portal_url:"https://crew.omanair.example/roster",notes:"Times on the roster are UTC.",updated_at:new Date(now-14*min).toISOString()}];
   S.loadedAt=now;
+  DEMO_REPORT=month=>{ const ym=month||"2026-10", it=[]; for(let d=1; d<=31; d++){ const ds=ym+"-"+String(d).padStart(2,"0");
+      if(d===12||d===13) continue;
+      if(d%7===3) it.push({date:ds,type:"unknown",code:"RDP",label:"RESERVA DOMICILIO",start:"06:00",end:"14:00"});
+      else if(d%4===0) it.push({date:ds,type:"flight",no:"UX10"+d,from:"MAD",to:"LHR",dep:"07:10",arr:"08:40"});
+      else it.push({date:ds,type:"off",code:"LIB",label:"Libre"}); }
+    return {airline:"UX", parser:"PORTRI", month:ym, parsed:it, image:null,
+      snapshot:"<html><body style='font:13px Arial;padding:14px'><h3>PROGRAMACION OCTUBRE 2026</h3><table border='1' cellpadding='4' style='border-collapse:collapse'><tr><th>Fecha</th><th>Servicio</th><th>Hora</th></tr>"
+        +[...Array(31)].map((_,i)=>"<tr><td>"+(i+1)+"/10</td><td>"+((i+1)%7===3?"RDP":((i+1)%4===0?"UX10"+(i+1)+" MAD-LHR":(i===11||i===12?"CURSO SEG":"LIB")))+"</td><td>"+((i+1)%4===0?"07:10-08:40":"")+"</td></tr>").join("")+"</table></body></html>"}; };
   DEMO_PILOT=id=>{ const p=S.pilots.find(x=>x.id===id)||{}; return Object.assign({}, p, {email:p.pilot?p.pilot.toLowerCase().replace(/ /g,".")+"@example.test":"",
     last_import:p.months?new Date(now-2*day).toISOString():null, log_minutes:p.log_entries?p.log_entries*318:0,
     online_view:(S.online.find(o=>o.user_id===id)||{}).view, online_seen:(S.online.find(o=>o.user_id===id)||{}).seen_at}); };
