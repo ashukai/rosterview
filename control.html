@@ -126,6 +126,14 @@ tr.tap{cursor:pointer} tr.tap:hover td{background:var(--fill)}
 .ev .k.acc{background:var(--accent-soft); color:var(--accent-ink)}
 .ev .d{min-width:0} .ev .d small{display:block; color:var(--sub); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .filters{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px}
+table.compact{font-size:12.5px}
+table.compact td{padding:7px 8px 7px 0}
+.scroll.pl thead th{position:sticky; top:0; background:var(--card); z-index:1; padding-top:2px}
+.sortb{border:none; background:none; padding:0; font:inherit; font-size:11px; font-weight:700; color:var(--faint); cursor:pointer; white-space:nowrap}
+.sortb.on{color:var(--ink)}
+#pilotsT a{color:var(--series, #2a6fdb); font-weight:700; text-decoration:none}
+#pilotsT a:hover{text-decoration:underline}
+.dot.on{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--good, #2e9d57); margin-right:3px; vertical-align:1px}
 .filters input[type=search]{min-width:min(340px,100%)}
 .filters select,.filters input{border:1px solid var(--line); background:var(--card); border-radius:9px; padding:6px 9px; font-size:12.5px}
 .need{display:flex; flex-direction:column; gap:8px}
@@ -300,7 +308,7 @@ async function tryRpc(fn, args, fallback){
 }
 
 /* ---------- state ---------- */
-const S={lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
+const S={pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
          sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
          missing:new Set(), view:"", kind:"", q:"", chart:"active", loadedAt:0, err:"", pilot:null, timer:null};
 
@@ -308,7 +316,7 @@ async function load(){
   if(DEMO){ demoData(); draw(); return; }
   try{
     const [codes,named,imports,airlines]=await Promise.all([tryRpc("admin_cr_codes",{},[]), tryRest("airline_codes?select=*&order=airline,code",[],"airline_codes"),
-      tryRpc("admin_cr_imports",{p_limit:200},[]), tryRpc("admin_airlines",{},[])]);
+      tryRpc("admin_cr_imports",{p_limit:1000},[]), tryRpc("admin_airlines",{},[])]);
     Object.assign(S,{codes:codes||[], named:named||[], imports:imports||[], airlines:airlines||[]});
     S.lbhelp=await tryRpc("admin_logbook_help",{},[]) || [];
     const [sum,daily,online,events,errors,screens,funnel,pilots,requests]=await Promise.all([
@@ -349,13 +357,15 @@ function draw(){
         <div class="chart" id="trend">${trendSvg()}</div></section>
 
       <section class="card c5" aria-labelledby="hOn"><h2 id="hOn">Online now</h2><div class="cap">${S.online.filter(o=>live(o)).length} in the app · seen in the last 15 minutes below</div>${onlineHtml()}</section>
-      <section class="card c7" aria-labelledby="hNeed"><h2 id="hNeed">Needs you</h2><div class="cap">Things a pilot is stuck on, newest first</div>${needHtml()}</section>
+      <section class="card c7" aria-labelledby="hPil"><h2 id="hPil">All pilots</h2><div class="cap">Click a column to sort, a pilot for everything about them, an import to see it beside the original</div>${pilotsHtml()}</section>
 
-      <section class="card c7" aria-labelledby="hBugs"><h2 id="hBugs">Bugs pilots hit</h2><div class="cap">Last 14 days, grouped by message</div>${bugsHtml()}</section>
+      <section class="card c7" aria-labelledby="hNeed"><h2 id="hNeed">Needs you</h2><div class="cap">Things a pilot is stuck on, newest first</div>${needHtml()}</section>
       <section class="card c5" aria-labelledby="hFun"><h2 id="hFun">How far pilots get</h2><div class="cap">Every pilot, from signing up onwards</div>${funnelHtml()}</section>
 
-      <section class="card c7" aria-labelledby="hFeed"><h2 id="hFeed">Activity</h2><div class="cap">What happened, newest first</div>${feedHtml()}</section>
+      <section class="card c7" aria-labelledby="hBugs"><h2 id="hBugs">Bugs pilots hit</h2><div class="cap">Last 14 days, grouped by message</div>${bugsHtml()}</section>
       <section class="card c5" aria-labelledby="hScr"><h2 id="hScr">Screens used</h2><div class="cap">Pilots who opened each screen, last 7 days</div>${screensHtml()}</section>
+
+      <section class="card c12" aria-labelledby="hFeed"><h2 id="hFeed">Activity</h2><div class="cap">What happened, newest first</div>${feedHtml()}</section>
 
       <section class="card c7" aria-labelledby="hCodes"><h2 id="hCodes">Duty codes the app can't name</h2>
         <div class="cap">From every pilot's roster. Name one and every pilot at that airline gets it the next time the app opens — including the days already showing Unknown.</div>${codesHtml()}</section>
@@ -366,7 +376,6 @@ function draw(){
       <section class="card c12" aria-labelledby="hReq"><h2 id="hReq">Airline requests</h2>
         <div class="cap">Pilots asking for their airline. Your reply and the status show in their app.</div>${requestsHtml()}</section>
 
-      <section class="card c12" aria-labelledby="hPil"><h2 id="hPil">Pilots</h2><div class="cap">${num(S.pilots.length)} · click one for everything about them</div>${pilotsHtml()}</section>
     </div>
   </div>
   <aside class="drawer${S.pilot?" open":""}" id="drawer" aria-label="Pilot">${S.pilot?drawerHtml():""}</aside>
@@ -504,28 +513,57 @@ function evDetail(kind,d){
   else Object.keys(d).slice(0,3).forEach(k=>b.push(k+": "+String(d[k]).slice(0,40)));
   return esc(b.filter(Boolean).join(" · "));
 }
-function pilotsHtml(){
-  const q=S.q.toLowerCase();
-  const rows=(S.pilots||[]).filter(p=>!q || [p.pilot,p.staff,p.airline].join(" ").toLowerCase().indexOf(q)>=0);
-  return `<div class="filters"><input type="search" placeholder="Name, staff number or airline" value="${esc(S.q)}" oninput="S.q=this.value;drawPilotsOnly()" aria-label="Find a pilot"></div>
-  <div id="pilotsT">${pilotsTable(rows)}</div>`;
+/* ---------- all pilots: one compact, sortable table ----------
+   Who they are, when they were last here, on which version, what they have
+   imported (the latest month, and whether it read cleanly), whether they keep a
+   logbook, and their errors. The airline picker narrows it to one airline. */
+const RK_SHORT=r=>{ const x=String(r||"").toLowerCase(); return /capt|cpt|commander/.test(x)?"CPT":/first officer|f\/o|\bfo\b/.test(x)?"F/O":/second officer|s\/o|\bso\b|relief/.test(x)?"S/O":String(r||""); };
+const tagNum=t=>+String(t||"").replace(/\D/g,"")||0;
+function lastImportOf(id){ return (S.imports||[]).find(i=>i.user_id===id) || null; }   // newest first already
+function pilotRows(){
+  const q=S.q.toLowerCase(), air=S.pAir||"";
+  const rows=(S.pilots||[]).filter(p=>(!air || p.airline===air) && (!q || [p.pilot,p.staff,p.airline,p.rank].join(" ").toLowerCase().indexOf(q)>=0))
+    .map(p=>Object.assign({}, p, {_imp:lastImportOf(p.id), _on:(S.online||[]).some(o=>o.user_id===p.id && live(o))}));
+  const k=S.pSort||"seen", dir=S.pDir===1?1:-1;
+  const val={name:p=>String(p.pilot||"").toLowerCase(), seen:p=>Date.parse(p.last_seen)||0, ver:p=>tagNum(p.app_tag),
+    months:p=>+p.months||0, imp:p=>p._imp?Date.parse(p._imp.at)||0:0, log:p=>+p.log_entries||0, err:p=>+p.errors_7d||0}[k]||(p=>0);
+  return rows.sort((a,b)=>{ const x=val(a), y=val(b); return (x<y?-1:x>y?1:0)*(k==="name"?-dir:dir); });
 }
+function pilotsHtml(){
+  const counts={}; (S.pilots||[]).forEach(p=>{ counts[p.airline]=(counts[p.airline]||0)+1; });
+  const airs=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b));
+  return `<div class="filters">
+    <select aria-label="Airline" onchange="S.pAir=this.value;drawPilotsOnly()">
+      <option value="">All airlines · ${num((S.pilots||[]).length)}</option>
+      ${airs.map(a=>`<option value="${esc(a)}"${S.pAir===a?" selected":""}>${esc(a)} · ${num(counts[a])}</option>`).join("")}</select>
+    <input type="search" placeholder="Name, staff number, rank" value="${esc(S.q)}" oninput="S.q=this.value;drawPilotsOnly()" aria-label="Find a pilot" style="flex:1;min-width:140px">
+  </div>
+  <div id="pilotsT">${pilotsTable(pilotRows())}</div>`;
+}
+function pSortBy(k){ if(S.pSort===k) S.pDir=S.pDir===1?-1:1; else { S.pSort=k; S.pDir=-1; } drawPilotsOnly(); }
 function pilotsTable(rows){
   if(!rows.length) return `<div class="empty">No pilots match.</div>`;
-  return `<div class="scroll"><table><thead><tr><th>Pilot</th><th>Airline</th><th>Rank</th><th class="num">Joined</th><th class="num">Last seen</th><th>Version</th><th class="num">Months</th><th class="num">Logbook</th><th class="num">Errors 7 d</th></tr></thead><tbody>
-    ${rows.slice(0,500).map(p=>`<tr class="tap" onclick="openPilot('${esc(p.id)}')">
-      <td><span class="who">${esc(p.pilot)}</span> <span class="faint">${p.staff?"#"+esc(p.staff):""}</span></td>
-      <td>${esc(p.airline)}</td><td class="muted">${esc(p.rank||"")}</td>
-      <td class="num muted">${ago(p.joined)}</td><td class="num">${ago(p.last_seen)}</td>
-      <td><span class="tag">${esc(vlabel(p.app_tag))}</span></td>
+  const newest=Math.max(0,...(S.pilots||[]).map(p=>tagNum(p.app_tag)));
+  const th=(k,l,cls)=>`<th class="${cls||""}"><button class="sortb${S.pSort===k?" on":""}" onclick="pSortBy('${k}')">${l}${S.pSort===k?(S.pDir===1?" ↑":" ↓"):""}</button></th>`;
+  return `<div class="scroll pl" style="max-height:430px"><table class="compact"><thead><tr>
+      ${th("name","Pilot")}${th("seen","Last seen","num")}${th("ver","Version")}${th("months","Months","num")}${th("imp","Last import")}${th("log","Logbook","num")}${th("err","Errors","num")}
+    </tr></thead><tbody>
+    ${rows.slice(0,800).map(p=>{ const im=p._imp;
+      return `<tr class="tap" onclick="openPilot('${esc(p.id)}')">
+      <td><span class="who">${esc(p.pilot)}</span><br><span class="faint">${esc(p.airline)}${p.rank?" · "+esc(RK_SHORT(p.rank)):""}${p.staff?" · #"+esc(p.staff):""}</span></td>
+      <td class="num">${p._on?`<span class="dot on" title="in the app now"></span> now`:ago(p.last_seen)}</td>
+      <td><span class="tag${tagNum(p.app_tag) && tagNum(p.app_tag)<newest?" warn":""}">${esc(vlabel(p.app_tag))}</span></td>
       <td class="num">${+p.months?num(p.months):`<span class="tag warn">none</span>`}</td>
-      <td class="num">${p.log_entries?num(p.log_entries):"–"}</td>
-      <td class="num">${+p.errors_7d?`<span class="tag bad">${num(p.errors_7d)}</span>`:"–"}</td></tr>`).join("")}
-  </tbody></table></div>`;
+      <td>${im?`<a href="#" onclick="event.stopPropagation();openImport(${im.report_id?+im.report_id:"null"},'${esc(im.user_id)}','${esc(im.month||"")}');return false">${esc(im.month||"?")}</a>
+          ${+im.blank_days?`<span class="tag warn">${num(im.blank_days)} blank</span>`:""}${+im.unknown?`<span class="tag bad">${num(im.unknown)} unknown</span>`:""}${!+im.blank_days&&!+im.unknown?`<span class="tag good">clean</span>`:""}
+          <br><span class="faint">${num(im.duties_out)} duties · ${ago(im.at)}</span>`:`<span class="faint">–</span>`}</td>
+      <td class="num">${+p.log_entries?`<span class="tag good">yes</span><br><span class="faint">${num(p.log_entries)}</span>`:`<span class="faint">no</span>`}</td>
+      <td class="num">${+p.errors_7d?`<span class="tag bad">${num(p.errors_7d)}</span>`:"–"}</td></tr>`; }).join("")}
+  </tbody></table></div>
+  <div class="faint" style="font-size:12px;margin-top:8px">${num(rows.length)} shown${S.pAir?" at "+esc(S.pAir):""} · errors are the last 7 days</div>`;
 }
 function drawPilotsOnly(){
-  const q=S.q.toLowerCase();
-  const el=document.getElementById("pilotsT"); if(el) el.innerHTML=pilotsTable((S.pilots||[]).filter(p=>!q || [p.pilot,p.staff,p.airline].join(" ").toLowerCase().indexOf(q)>=0));
+  const el=document.getElementById("pilotsT"); if(el) el.innerHTML=pilotsTable(pilotRows());
 }
 
 /* ---------- duty codes ---------- */
@@ -580,7 +618,7 @@ async function deleteCode(airline, code){
 
 /* ---------- imports: the original beside what was read ---------- */
 function importsHtml(){
-  const rows=S.imports||[]; if(!rows.length) return `<div class="empty">No imports yet.</div>`;
+  const rows=(S.imports||[]).slice(0,200); if(!rows.length) return `<div class="empty">No imports yet.</div>`;
   return `<div class="scroll" style="max-height:420px"><table><thead><tr><th>Pilot</th><th>Month</th><th class="num">Duties</th><th>Problems</th><th class="num">When</th></tr></thead><tbody>
     ${rows.map(i=>`<tr class="tap" onclick="openImport(${i.report_id?+i.report_id:"null"},'${esc(i.user_id)}','${esc(i.month||"")}')">
       <td><span class="who">${esc(i.pilot)}</span> <span class="faint">${esc(i.airline)}</span></td>
