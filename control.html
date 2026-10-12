@@ -308,7 +308,7 @@ async function tryRpc(fn, args, fallback){
 }
 
 /* ---------- state ---------- */
-const S={pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
+const S={sugg:[], sgEdit:{}, anyCode:{}, pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
          sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
          missing:new Set(), view:"", kind:"", q:"", chart:"active", loadedAt:0, err:"", pilot:null, timer:null};
 
@@ -319,6 +319,7 @@ async function load(){
       tryRpc("admin_cr_imports",{p_limit:1000},[]), tryRpc("admin_airlines",{},[])]);
     Object.assign(S,{codes:codes||[], named:named||[], imports:imports||[], airlines:airlines||[]});
     S.lbhelp=await tryRpc("admin_logbook_help",{},[]) || [];
+    S.sugg=await tryRpc("admin_code_suggestions",{},[]) || [];
     const [sum,daily,online,events,errors,screens,funnel,pilots,requests]=await Promise.all([
       tryRpc("admin_cr_summary",{},[]), tryRpc("admin_cr_daily",{p_days:60},[]), tryRpc("admin_cr_online",{p_minutes:15},[]),
       tryRpc("admin_cr_events",{p_limit:300},[]), tryRpc("admin_cr_errors",{p_days:14},[]), tryRpc("admin_cr_screens",{p_days:7},[]),
@@ -371,6 +372,8 @@ function draw(){
         <div class="cap">From every pilot's roster. Name one and every pilot at that airline gets it the next time the app opens — including the days already showing Unknown.</div>${codesHtml()}</section>
       <section class="card c5" aria-labelledby="hImp"><h2 id="hImp">Imports</h2>
         <div class="cap">Every roster brought in, newest first. Blank days are days the page had and the app read nothing for. Click one to see the original beside what was read.</div>${importsHtml()}</section>
+      <section class="card c12" aria-labelledby="hSug"><h2 id="hSug">Codes pilots named</h2>
+        <div class="cap">A pilot named a code the app didn't know, or asked to change one in the list (\ud83d\udd12). Approve puts it in the master list for that airline: it is locked, and every pilot there gets it the next time the app opens.</div>${suggHtml()}</section>
       <section class="card c12" aria-labelledby="hLbh"><h2 id="hLbh">Logbook files that wouldn't import</h2>
         <div class="cap">Sent by pilots from the app. Download one, give it to Claude Code to teach the importer that format, then mark it Ready — the pilot sees your reply in their logbook.</div>${lbhelpHtml()}</section>
       <section class="card c12" aria-labelledby="hReq"><h2 id="hReq">Airline requests</h2>
@@ -600,7 +603,57 @@ function codesHtml(){
     <table style="margin-top:6px"><tbody>${named.map(n=>`<tr><td>${esc(n.airline)}</td><td><b style="font-family:ui-monospace,Menlo,monospace">${esc(n.code)}</b></td>
       <td>${sw(n.type)} ${esc(n.label)} <span class="faint">${esc(n.type)}</span></td><td class="num muted">${ago(n.updated_at)}</td>
       <td class="num"><button class="btn sm" onclick="deleteCode('${esc(n.airline)}','${esc(n.code)}')">Remove</button></td></tr>`).join("")}</tbody></table></details>` : "";
-  return list+done;
+  return anyCodeHtml()+list+done;
+}
+/* ---------- name any code ----------
+   Not only the ones the app could not read: a code a general rule read wrongly
+   (KJD as a hotel, by the "K + letters" rule) is fixed here the same way. */
+function anyCodeHtml(){
+  const f=S.anyCode||{};
+  return `<div class="row-form" style="margin-bottom:12px">
+    <select id="acAir" aria-label="Airline" onchange="S.anyCode.airline=this.value">${airlineChoices(f.airline||"").map(a=>`<option${a===f.airline?" selected":""}>${esc(a)}</option>`).join("")}</select>
+    <input id="acCode" placeholder="CODE" maxlength="16" style="width:90px;text-transform:uppercase;font-family:ui-monospace,Menlo,monospace" value="${esc(f.code||"")}" oninput="S.anyCode.code=this.value">
+    <select id="acType" aria-label="Type" onchange="S.anyCode.type=this.value">${CODE_TYPES.map(([k,l])=>`<option value="${k}"${(f.type||"ground")===k?" selected":""}>${esc(l)}</option>`).join("")}</select>
+    <input id="acLabel" placeholder="What the pilot reads" style="flex:1;min-width:160px" value="${esc(f.label||"")}" oninput="S.anyCode.label=this.value">
+    <button class="btn sm primary" onclick="saveAnyCode()">Name it</button></div>`;
+}
+async function saveAnyCode(){
+  const air=((document.getElementById("acAir")||{}).value||"").trim().toUpperCase(), code=((document.getElementById("acCode")||{}).value||"").trim().toUpperCase();
+  const type=(document.getElementById("acType")||{}).value, label=((document.getElementById("acLabel")||{}).value||"").trim();
+  if(!air||!code||!label){ alert("Airline, code and a name, please."); return; }
+  if(DEMO){ S.named=(S.named||[]).filter(n=>!(n.airline===air&&n.code===code)).concat([{airline:air,code,type,label,updated_at:new Date().toISOString()}]); S.anyCode={airline:air}; draw(); return; }
+  try{ await rpc("admin_code_set",{p_airline:air, p_code:code, p_type:type, p_label:label, p_about:null}); S.anyCode={airline:air}; await load(); }
+  catch(e){ alert("Couldn't save: "+e.message); }
+}
+/* ---------- codes pilots named ---------- */
+function suggHtml(){
+  const rows=S.sugg||[];
+  if(!rows.length) return `<div class="empty">Nothing waiting. When a pilot names a code, it shows here.</div>`;
+  const tl=k=>(CODE_TYPES.find(t=>t[0]===k)||[k,k])[1];
+  return `<div class="scroll" style="max-height:420px"><table><thead><tr><th>Airline</th><th>Code</th><th>The pilot says</th><th>It was</th><th class="num">Pilots</th><th>Approve as</th><th></th></tr></thead><tbody>
+    ${rows.map(r=>{ const key=r.airline+"|"+r.code+"|"+r.type+"|"+r.label, e=S.sgEdit[key]||{type:r.type,label:r.label};
+      return `<tr><td>${esc(r.airline)}</td>
+      <td><b style="font-family:ui-monospace,Menlo,monospace">${esc(r.code)}</b>${r.locked?` <span title="Already in the list \u2014 a pilot asked to change it">\ud83d\udd12</span>`:""}${r.sample?`<br><span class="faint">${esc(r.sample)}</span>`:""}</td>
+      <td>${sw(r.type)} ${esc(r.label)}<br><span class="faint">${esc(r.pilot||"")} \u00b7 ${ago(r.last_at)}</span></td>
+      <td class="muted">${r.was_type?esc(tl(r.was_type))+(r.was_label&&r.was_label!==tl(r.was_type)?" \u00b7 "+esc(r.was_label):""):"unknown"}${r.named_type?`<br><span class="tag good">named: ${esc(r.named_label)}</span>`:""}</td>
+      <td class="num">${num(r.pilots)}</td>
+      <td><div class="row-form" style="margin:0">
+        <select aria-label="Type" onchange="(S.sgEdit['${esc(key)}']=S.sgEdit['${esc(key)}']||{type:'${esc(r.type)}',label:'${esc(r.label)}'}).type=this.value">${CODE_TYPES.map(([k,l])=>`<option value="${k}"${e.type===k?" selected":""}>${esc(l)}</option>`).join("")}</select>
+        <input aria-label="Name" value="${esc(e.label)}" style="min-width:130px" oninput="(S.sgEdit['${esc(key)}']=S.sgEdit['${esc(key)}']||{type:'${esc(r.type)}',label:'${esc(r.label)}'}).label=this.value"></div></td>
+      <td style="white-space:nowrap"><button class="btn sm primary" onclick="decideSugg('${esc(key)}',true)">Approve</button>
+        <button class="btn sm" onclick="decideSugg('${esc(key)}',false)">Reject</button></td></tr>`; }).join("")}
+  </tbody></table></div>`;
+}
+async function decideSugg(key, approve){
+  const r=(S.sugg||[]).find(x=>x.airline+"|"+x.code+"|"+x.type+"|"+x.label===key); if(!r) return;
+  const e=S.sgEdit[key]||{type:r.type,label:r.label};
+  if(approve && !String(e.label||"").trim()){ alert("Give it a name the pilot will read."); return; }
+  if(!approve && !confirm("Reject "+r.code+" for "+r.airline+"? The pilot keeps their own name on their phone; nobody else gets it.")) return;
+  if(DEMO){ S.sugg=S.sugg.filter(x=>!(x.airline===r.airline&&x.code===r.code));
+    if(approve) S.named=(S.named||[]).concat([{airline:r.airline,code:r.code,type:e.type,label:e.label,updated_at:new Date().toISOString()}]); draw(); return; }
+  try{ await rpc("admin_code_suggestion_set",{p_airline:r.airline, p_code:r.code, p_approve:!!approve, p_type:approve?e.type:null, p_label:approve?String(e.label).trim():null});
+       delete S.sgEdit[key]; await load(); }
+  catch(e2){ alert(/admin_code_suggestion_set|PGRST202|does not exist/.test(e2.message) ? "Run SQL part 43 first." : "Couldn't save: "+e2.message); }
 }
 async function saveCode(airline, code){
   const type=(document.getElementById("cfType")||{}).value, label=((document.getElementById("cfLabel")||{}).value||"").trim();
@@ -939,6 +992,8 @@ function demoData(){
            {airline:"OMAN AIR",code:"X",times:9,pilots:1,first_seen:"2026-10-01",last_seen:"2026-10-30",guessed:0,labels:[],times_seen:[]},
            {airline:"AJX",code:"GSG",times:2,pilots:2,first_seen:"2026-11-03",last_seen:"2026-11-04",guessed:2,labels:["GROUND SCHOOL G"],times_seen:["09:00–17:00"],named_type:"ground",named_label:"Ground School G"}];
   S.named=[{airline:"AJX",code:"GSG",type:"ground",label:"Ground School G",updated_at:new Date(now-2*day).toISOString()}];
+  S.sugg=[{airline:"AJX",code:"KJD",type:"ground",label:"Kaizen day",was_type:"hotel",was_label:"Hotel",locked:false,sample:"Fri 9 Oct 09:00\u201318:00",pilots:2,pilot:"Valentin Leoni",last_at:new Date(now-40*60000).toISOString()},
+    {airline:"AJX",code:"SB3",type:"ground",label:"Office standby",was_type:"standby",was_label:"Standby",locked:true,sample:"Sat 10 Oct 06:00\u201312:00",pilots:1,pilot:"Kenji Sato",last_at:new Date(now-3*3600000).toISOString()}];
   S.imports=[{user_id:"p11",at:new Date(now-31*min).toISOString(),pilot:"Jonas Berg",airline:"UX",parser:"PORTRI",month:"2026-10",rows_in:0,duties_out:0,flights:0,unknown:0,blank_days:31,report_id:91},
              {user_id:"p5",at:new Date(now-9*min).toISOString(),pilot:"Priya Nair",airline:"AJX",parser:"CIS",month:"2026-11",rows_in:31,duties_out:31,flights:12,unknown:0,blank_days:0,report_id:92},
              {user_id:"p3",at:new Date(now-3*3600000).toISOString(),pilot:"Marta Ruiz",airline:"UX",parser:"PORTRI",month:"2026-10",rows_in:29,duties_out:27,flights:14,unknown:3,blank_days:2,report_id:93},
