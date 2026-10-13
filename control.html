@@ -131,6 +131,15 @@ table.compact td{padding:7px 8px 7px 0}
 .scroll.pl thead th{position:sticky; top:0; background:var(--card); z-index:1; padding-top:2px}
 .sortb{border:none; background:none; padding:0; font:inherit; font-size:11px; font-weight:700; color:var(--faint); cursor:pointer; white-space:nowrap}
 .sortb.on{color:var(--ink)}
+button.kpi.tapk{border:none; text-align:left; font:inherit; color:inherit; cursor:pointer}
+button.kpi.tapk:hover{outline:2px solid var(--line)}
+.rcal{display:grid; grid-template-columns:repeat(7,1fr); gap:3px}
+.rcal .rh{font-size:10.5px; font-weight:700; color:var(--faint); text-align:center}
+.rc{min-height:38px; border-radius:6px; padding:3px 4px; display:flex; flex-direction:column; justify-content:space-between; font-size:10.5px; background:var(--fill)}
+.rc i{font-style:normal; font-weight:700; opacity:.8}
+.rc b{font-weight:800; font-size:11px; overflow:hidden; white-space:nowrap}
+.rc.blank{background:transparent; box-shadow:inset 0 0 0 1.5px var(--warn)}
+.rlist{font-size:12.5px; line-height:1.8; max-height:260px; overflow:auto; padding:8px 10px; border-radius:10px; background:var(--fill); margin-bottom:14px}
 #pilotsT a{color:var(--series, #2a6fdb); font-weight:700; text-decoration:none}
 #pilotsT a:hover{text-decoration:underline}
 .dot.on{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--good, #2e9d57); margin-right:3px; vertical-align:1px}
@@ -308,7 +317,7 @@ async function tryRpc(fn, args, fallback){
 }
 
 /* ---------- state ---------- */
-const S={sugg:[], sgEdit:{}, anyCode:{}, pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
+const S={pNew:false, sugg:[], sgEdit:{}, anyCode:{}, pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
          sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
          missing:new Set(), view:"", kind:"", q:"", chart:"active", loadedAt:0, err:"", pilot:null, timer:null};
 
@@ -408,7 +417,8 @@ function kpiHtml(){
     ${k(s.active_today,"active today")}
     ${k(s.active_7d,"active in 7 days")}
     ${k(s.pilots,"pilots signed up")}
-    ${k(s.signups_7d,"new in 7 days")}
+    <button class="kpi tapk" onclick="S.pNew=true;S.pAir='';S.pSort='joined';S.pDir=-1;draw();setTimeout(()=>{const h=document.getElementById('hPil');h&&h.scrollIntoView({behavior:'smooth',block:'start'});},30)"
+      title="Show who"><b>${s.signups_7d==null?"–":num(s.signups_7d)}</b><span>new in 7 days · show who ›</span></button>
     ${k(s.never_imported,"never imported a roster", (+s.never_imported? "":""), (+s.never_imported?"warn":""))}
     ${k(s.errors_24h,"errors in 24 h · "+num(s.error_pilots_24h)+" pilots", +s.errors_24h?"bad":"", +s.errors_24h?"bad":"")}
     ${k(s.logbooks,"logbooks · "+num(s.logbook_entries)+" entries")}
@@ -523,12 +533,13 @@ function evDetail(kind,d){
 const RK_SHORT=r=>{ const x=String(r||"").toLowerCase(); return /capt|cpt|commander/.test(x)?"CPT":/first officer|f\/o|\bfo\b/.test(x)?"F/O":/second officer|s\/o|\bso\b|relief/.test(x)?"S/O":String(r||""); };
 const tagNum=t=>+String(t||"").replace(/\D/g,"")||0;
 function lastImportOf(id){ return (S.imports||[]).find(i=>i.user_id===id) || null; }   // newest first already
+const isNewPilot=p=>Date.now()-(Date.parse(p.joined)||0) < 7*86400000;
 function pilotRows(){
   const q=S.q.toLowerCase(), air=S.pAir||"";
-  const rows=(S.pilots||[]).filter(p=>(!air || p.airline===air) && (!q || [p.pilot,p.staff,p.airline,p.rank].join(" ").toLowerCase().indexOf(q)>=0))
+  const rows=(S.pilots||[]).filter(p=>(!air || p.airline===air) && (!S.pNew || isNewPilot(p)) && (!q || [p.pilot,p.staff,p.airline,p.rank].join(" ").toLowerCase().indexOf(q)>=0))
     .map(p=>Object.assign({}, p, {_imp:lastImportOf(p.id), _on:(S.online||[]).some(o=>o.user_id===p.id && live(o))}));
   const k=S.pSort||"seen", dir=S.pDir===1?1:-1;
-  const val={name:p=>String(p.pilot||"").toLowerCase(), seen:p=>Date.parse(p.last_seen)||0, ver:p=>tagNum(p.app_tag),
+  const val={name:p=>String(p.pilot||"").toLowerCase(), seen:p=>Date.parse(p.last_seen)||0, joined:p=>Date.parse(p.joined)||0, ver:p=>tagNum(p.app_tag),
     months:p=>+p.months||0, imp:p=>p._imp?Date.parse(p._imp.at)||0:0, log:p=>+p.log_entries||0, err:p=>+p.errors_7d||0}[k]||(p=>0);
   return rows.sort((a,b)=>{ const x=val(a), y=val(b); return (x<y?-1:x>y?1:0)*(k==="name"?-dir:dir); });
 }
@@ -540,6 +551,8 @@ function pilotsHtml(){
       <option value="">All airlines · ${num((S.pilots||[]).length)}</option>
       ${airs.map(a=>`<option value="${esc(a)}"${S.pAir===a?" selected":""}>${esc(a)} · ${num(counts[a])}</option>`).join("")}</select>
     <input type="search" placeholder="Name, staff number, rank" value="${esc(S.q)}" oninput="S.q=this.value;drawPilotsOnly()" aria-label="Find a pilot" style="flex:1;min-width:140px">
+    ${(()=>{ const n=(S.pilots||[]).filter(isNewPilot).length;
+      return `<button class="btn sm${S.pNew?" primary":""}" onclick="S.pNew=!S.pNew;if(S.pNew){S.pSort='joined';S.pDir=-1;}draw()" aria-pressed="${!!S.pNew}">New this week · ${num(n)}</button>`; })()}
   </div>
   <div id="pilotsT">${pilotsTable(pilotRows())}</div>`;
 }
@@ -549,11 +562,12 @@ function pilotsTable(rows){
   const newest=Math.max(0,...(S.pilots||[]).map(p=>tagNum(p.app_tag)));
   const th=(k,l,cls)=>`<th class="${cls||""}"><button class="sortb${S.pSort===k?" on":""}" onclick="pSortBy('${k}')">${l}${S.pSort===k?(S.pDir===1?" ↑":" ↓"):""}</button></th>`;
   return `<div class="scroll pl" style="max-height:430px"><table class="compact"><thead><tr>
-      ${th("name","Pilot")}${th("seen","Last seen","num")}${th("ver","Version")}${th("months","Months","num")}${th("imp","Last import")}${th("log","Logbook","num")}${th("err","Errors","num")}
+      ${th("name","Pilot")}${th("joined","Joined","num")}${th("seen","Last seen","num")}${th("ver","Version")}${th("months","Months","num")}${th("imp","Last import")}${th("log","Logbook","num")}${th("err","Errors","num")}
     </tr></thead><tbody>
     ${rows.slice(0,800).map(p=>{ const im=p._imp;
       return `<tr class="tap" onclick="openPilot('${esc(p.id)}')">
-      <td><span class="who">${esc(p.pilot)}</span><br><span class="faint">${esc(p.airline)}${p.rank?" · "+esc(RK_SHORT(p.rank)):""}${p.staff?" · #"+esc(p.staff):""}</span></td>
+      <td><span class="who">${esc(p.pilot)}</span>${isNewPilot(p)?` <span class="tag good">new</span>`:""}<br><span class="faint">${esc(p.airline)}${p.rank?" · "+esc(RK_SHORT(p.rank)):""}${p.staff?" · #"+esc(p.staff):""}</span></td>
+      <td class="num muted">${ago(p.joined)}</td>
       <td class="num">${p._on?`<span class="dot on" title="in the app now"></span> now`:ago(p.last_seen)}</td>
       <td><span class="tag${tagNum(p.app_tag) && tagNum(p.app_tag)<newest?" warn":""}">${esc(vlabel(p.app_tag))}</span></td>
       <td class="num">${+p.months?num(p.months):`<span class="tag warn">none</span>`}</td>
@@ -841,15 +855,60 @@ async function setPilotLogbook(id, on){
   catch(e){ alert(/admin_pilot_flag_set|PGRST202|does not exist/.test(e.message) ? "Run SQL part 42 first." : e.message); }
 }
 
+/* ---------- their roster, month by month (what the app's own owner screen shows) ----------
+   The month as the app filed it, drawn as a small calendar in the app's colours,
+   with the counts, any code it could not name, and the page their airline drew
+   one click away. */
+function pilotMonth(d){ const P=S.pilot; if(!P||!P.months) return; P.mi=Math.max(0, Math.min(P.months.length-1, (P.mi||0)+d)); P.showList=false; draw(); }
+function rosterBlockHtml(P){
+  const months=P.months||[];
+  if(!months.length) return `<h2 style="font-size:13px;margin:6px 0 6px">Roster</h2><div class="empty" style="margin-bottom:14px">Nothing imported yet.</div>`;
+  const mo=months[P.mi||0], duties=Array.isArray(mo.data)?mo.data:[];
+  const y=+mo.month.slice(0,4), m=+mo.month.slice(5,7), days=new Date(y, m, 0).getDate(), first=(new Date(y, m-1, 1).getDay()+6)%7;
+  const byDay={}; duties.forEach(e=>{ const d=String(e.date||""); if(d.slice(0,7)===mo.month) (byDay[+d.slice(8,10)] ||= []).push(e); });
+  const unknown=[...new Set(duties.filter(e=>e.type==="unknown").map(e=>e.code).filter(Boolean))];
+  const flights=duties.filter(e=>e.type==="flight").length;
+  const blank=[...Array(days)].map((_,i)=>i+1).filter(d=>!byDay[d]);
+  const page=(P.pages||[]).find(pg=>pg.month===mo.month);
+  const cell=d=>{ const it=byDay[d]||[]; const e=it.find(x=>x.type==="flight")||it[0];
+    const t=e ? (e.type==="layover"?"flight":e.type) : "";
+    const txt=e ? (e.type==="flight" ? (e.to||e.no||"") : (e.code||"")) : "";
+    return `<div class="rc${e?"":" blank"}" style="${e?`background:${TYPE_COLOR[t]||"var(--fill)"};color:${t==="unknown"||!TYPE_COLOR[t]?"var(--ink)":"#fff"}`:""}" title="${esc(it.map(x=>(x.code||x.no||x.type)+(x.label?" · "+x.label:"")).join(" / "))}">
+      <i>${d}</i><b>${esc(String(txt).slice(0,5))}</b></div>`; };
+  const line=e=>e.type==="flight" ? `${esc(String(e.date||"").slice(5))} · <b>${esc(e.no||"flight")}</b> ${esc(e.from||"?")}→${esc(e.to||"?")} ${esc(e.dep||"")}${e.arr?"–"+esc(e.arr):""}`
+                                 : `${esc(String(e.date||"").slice(5))} · <b>${esc(e.code||e.type||"duty")}</b> ${esc(e.label||"")}${e.start?" "+esc(e.start):""}`;
+  return `<h2 style="font-size:13px;margin:6px 0 6px">Roster</h2>
+    <div class="row-form" style="justify-content:space-between;margin-bottom:8px">
+      <button class="btn sm" onclick="pilotMonth(1)"${(P.mi||0)>=months.length-1?" disabled":""}>‹ Older</button>
+      <b>${esc(new Date(y, m-1, 1).toLocaleDateString(undefined,{month:"long", year:"numeric"}))}</b>
+      <button class="btn sm" onclick="pilotMonth(-1)"${(P.mi||0)<=0?" disabled":""}>Newer ›</button></div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:8px">${num(duties.length)} duties · ${num(flights)} flights${
+      unknown.length?` · <span class="tag bad">${num(unknown.length)} unknown: ${esc(unknown.join(", "))}</span>`:""}${
+      blank.length?` · <span class="tag warn">${num(blank.length)} blank</span>`:""}${
+      mo.updated_at?` · imported ${ago(mo.updated_at)}`:""} · ${esc(mo.visibility||"?")}</div>
+    <div class="rcal">${["M","T","W","T","F","S","S"].map(x=>`<span class="rh">${x}</span>`).join("")}${"<span></span>".repeat(first)}${[...Array(days)].map((_,i)=>cell(i+1)).join("")}</div>
+    <div class="row-form" style="margin:10px 0 14px">
+      ${page?`<button class="btn sm primary" onclick="openImport(${+page.id},'${esc(P.id)}','${esc(mo.month)}')">See the page their airline drew</button>`
+            :`<span class="faint" style="font-size:12.5px">No page kept for this month</span>`}
+      <button class="btn sm" onclick="S.pilot.showList=!S.pilot.showList;draw()">${P.showList?"Hide":"Show"} what was read</button></div>
+    ${P.showList?`<div class="rlist">${duties.length?duties.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(line).join("<br>"):"<i>nothing</i>"}</div>`:""}`;
+}
+
 /* ---------- one pilot ---------- */
 async function openPilot(id){
   if(!id) return;
   S.pilot={id, info:null, events:null}; draw();
   try{
-    if(DEMO){ S.pilot.info=DEMO_PILOT(id); S.pilot.events=(S.events||[]).filter(e=>e.user_id===id); S.pilot.flags=S.pilot.flags||{}; }
+    if(DEMO){ S.pilot.info=DEMO_PILOT(id); S.pilot.events=(S.events||[]).filter(e=>e.user_id===id); S.pilot.flags=S.pilot.flags||{};
+      const p=S.pilots.find(x=>x.id===id)||{};
+      S.pilot.months=[...Array(+p.months||0)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); const ym=d.toISOString().slice(0,7);
+        return {month:ym, data:DEMO_REPORT(ym).parsed, updated_at:new Date(Date.now()-(i*30+2)*86400000).toISOString(), visibility:"open"}; });
+      S.pilot.pages=S.pilot.months.map((m,i)=>({id:900+i, month:m.month, at:m.updated_at})); S.pilot.mi=0; }
     else{
-      const [info,events]=await Promise.all([tryRpc("admin_cr_pilot",{p_id:id},[]), tryRpc("admin_cr_events",{p_user:id,p_limit:300},[])]);
+      const [info,events,months,pages]=await Promise.all([tryRpc("admin_cr_pilot",{p_id:id},[]), tryRpc("admin_cr_events",{p_user:id,p_limit:300},[]),
+        tryRpc("admin_roster",{p_user:id, p_month:null},[]), tryRpc("admin_pages_for",{p_user:id},[])]);
       S.pilot.info=(info||[])[0]||{}; S.pilot.events=events||[];
+      S.pilot.months=months||[]; S.pilot.pages=pages||[]; S.pilot.mi=0;
       S.pilot.flags=Object.fromEntries((await tryRpc("admin_pilot_flags",{p_user:id},[])||[]).map(f=>[f.key,!!f.value]));
     }
   }catch(e){ S.pilot.info={pilot:"Couldn't load: "+e.message}; S.pilot.events=[]; }
@@ -872,6 +931,7 @@ function drawerHtml(){
         <select id="mvAir" aria-label="Airline">${airlineChoices(i.airline).map(a=>`<option${a===i.airline?" selected":""}>${esc(a)}</option>`).join("")}</select>
         <input id="mvAirT" placeholder="or type a code" aria-label="Another airline code" style="width:120px" maxlength="12">
         <button class="btn sm primary" onclick="moveAirline('${esc(P.id)}')">Move</button></div>
+      ${rosterBlockHtml(P)}
       <h2 style="font-size:13px;margin:6px 0 6px">Logbook</h2>
       <div class="row-form" style="margin-bottom:14px">
         <span class="muted" style="flex:1">${(P.flags||{}).logbook?"On — they have the Logbook tab, even before everybody does":"Off — they get it when the Logbook is on for every pilot"}</span>
