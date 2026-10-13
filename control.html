@@ -58,12 +58,13 @@ header .sp{flex:1}
 .card{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px 18px; min-width:0}
 .card h2{margin:0 0 2px; font-size:14px; font-weight:750; letter-spacing:-.1px}
 .card .cap{font-size:12px; color:var(--sub); margin-bottom:12px}
+.grid{grid-auto-flow:row dense}
 .c3{grid-column:span 3} .c4{grid-column:span 4} .c5{grid-column:span 5} .c6{grid-column:span 6} .c7{grid-column:span 7} .c8{grid-column:span 8} .c12{grid-column:span 12}
 @media (max-width:1100px){ .c3,.c4,.c5{grid-column:span 6} .c7,.c8{grid-column:span 12} }
 @media (max-width:720px){ .wrap{padding:14px 16px 40px} .c3,.c4,.c5,.c6,.c7,.c8{grid-column:span 12} }
 
 /* the numbers */
-.kpis{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px}
+.kpis{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
 .kpi{padding:12px 14px; border-radius:12px; background:var(--fill); min-width:0}
 .kpi b{display:block; font-size:28px; font-weight:800; letter-spacing:-.8px; line-height:1.1; font-variant-numeric:tabular-nums}
 .kpi span{display:flex; align-items:center; gap:6px; margin-top:3px; font-size:12px; font-weight:650; color:var(--sub)}
@@ -251,6 +252,16 @@ const KINDS={
   airline_request: {t:"Asked for their airline",       k:"acc",i:"?"},
   compare:         {t:"Compared rosters",              k:"",   i:"⇄"},
   swap_request:    {t:"Asked for a swap",              k:"acc",i:"⇄"},
+  import_paste:    {t:"Pasted a roster",               k:"good",i:"✓"},
+  import_file:     {t:"Imported a file",               k:"good",i:"✓"},
+  import_screenshot:{t:"Added a roster screenshot",    k:"",   i:"▣"},
+  portal_open:     {t:"Opened their airline's roster page", k:"", i:"↗"},
+  duty_added:      {t:"Added a duty by hand",          k:"",   i:"+"},
+  flights_sent:    {t:"Shared flights with the flight list", k:"", i:"✈"},
+  code_named:      {t:"Named a duty code",             k:"acc",i:"✎"},
+  log_lock:        {t:"Locked or unlocked a flight",   k:"",   i:"🔒"},
+  log_restore:     {t:"Put a logbook backup back",     k:"acc",i:"↺"},
+  whats_new:       {t:"Saw what's new",                k:"",   i:"★"},
   error:           {t:"Error",                         k:"bad",i:"!"},
   quiet_error:     {t:"Something failed quietly",      k:"bad",i:"!"}
 };
@@ -357,25 +368,22 @@ function draw(){
     ${S.missing.size?`<div class="card" style="margin-bottom:14px"><b>Some panels need the database updated.</b>
       <span class="muted">Run SQL part 38 in Supabase (and part 37 for airline requests), then reload. Missing: ${esc([...S.missing].join(", "))}</span></div>`:""}
     <div class="grid">
-      <section class="card c8" aria-labelledby="hKpi"><h2 id="hKpi">Right now</h2><div class="cap">${S.loadedAt?"Updated "+hhmm(S.loadedAt):""}${DEMO?" · made-up data":""}</div>${kpiHtml()}</section>
-      <section class="card c4" style="grid-row:span 2" aria-labelledby="hMap"><h2 id="hMap">The app, first screen to last</h2>
-        <div class="cap">Online now on each screen, and pilots who opened it in the last 7 days. Click one to filter the activity.</div>${mapHtml()}</section>
-      <section class="card c8" aria-labelledby="hTrend"><h2 id="hTrend">${({active:"Active pilots",signups:"Sign-ups",errors:"Errors",imports:"Roster imports"})[S.chart]} per day</h2>
+      <section class="card c5" aria-labelledby="hKpi"><h2 id="hKpi">Right now</h2><div class="cap">${S.loadedAt?"Updated "+hhmm(S.loadedAt):""}${DEMO?" · made-up data":""}</div>${kpiHtml()}</section>
+      <section class="card c7" style="grid-row:span 2" aria-labelledby="hPil"><h2 id="hPil">All pilots</h2><div class="cap">Click a column to sort, a pilot for everything about them, an import to see it beside the original. A green dot is in the app now.</div>${pilotsHtml()}</section>
+      <section class="card c5" aria-labelledby="hTrend"><h2 id="hTrend">${({active:"Active pilots",signups:"Sign-ups",errors:"Errors",imports:"Roster imports"})[S.chart]} per day</h2>
         <div class="cap">Last 60 days</div>
         <div class="tabs" role="tablist">${[["active","Active pilots"],["signups","Sign-ups"],["imports","Roster imports"],["errors","Errors"]].map(([k,l])=>
           `<button role="tab" aria-selected="${S.chart===k}" class="${S.chart===k?"on":""}" onclick="S.chart='${k}';draw()">${l}</button>`).join("")}</div>
         <div class="chart" id="trend">${trendSvg()}</div></section>
 
-      <section class="card c5" aria-labelledby="hOn"><h2 id="hOn">Online now</h2><div class="cap">${S.online.filter(o=>live(o)).length} in the app · seen in the last 15 minutes below</div>${onlineHtml()}</section>
-      <section class="card c7" aria-labelledby="hPil"><h2 id="hPil">All pilots</h2><div class="cap">Click a column to sort, a pilot for everything about them, an import to see it beside the original</div>${pilotsHtml()}</section>
+      <section class="card c7" aria-labelledby="hFeed"><h2 id="hFeed">Activity</h2><div class="cap">What happened, newest first</div>${feedHtml()}</section>
+      <section class="card c5" aria-labelledby="hNeed"><h2 id="hNeed">Needs you</h2><div class="cap">Things a pilot is stuck on, newest first</div>${needHtml()}</section>
 
-      <section class="card c7" aria-labelledby="hNeed"><h2 id="hNeed">Needs you</h2><div class="cap">Things a pilot is stuck on, newest first</div>${needHtml()}</section>
       <section class="card c5" aria-labelledby="hFun"><h2 id="hFun">How far pilots get</h2><div class="cap">Every pilot, from signing up onwards</div>${funnelHtml()}</section>
 
       <section class="card c7" aria-labelledby="hBugs"><h2 id="hBugs">Bugs pilots hit</h2><div class="cap">Last 14 days, grouped by message</div>${bugsHtml()}</section>
       <section class="card c5" aria-labelledby="hScr"><h2 id="hScr">Screens used</h2><div class="cap">Pilots who opened each screen, last 7 days</div>${screensHtml()}</section>
 
-      <section class="card c12" aria-labelledby="hFeed"><h2 id="hFeed">Activity</h2><div class="cap">What happened, newest first</div>${feedHtml()}</section>
 
       <section class="card c7" aria-labelledby="hCodes"><h2 id="hCodes">Duty codes the app can't name</h2>
         <div class="cap">From every pilot's roster. Name one and every pilot at that airline gets it the next time the app opens — including the days already showing Unknown.</div>${codesHtml()}</section>
@@ -461,8 +469,25 @@ function needHtml(){
     t:`${esc(e.pilot)}'s old logbook would not import`, s:esc(((e.data||{}).reason||"")+((e.data||{}).format?" · "+(e.data||{}).format:""))}));
   (S.events||[]).filter(e=>e.kind==="import_empty"||e.kind==="import_failed").slice(0,8).forEach(e=>out.push({at:e.at, dot:"bad", uid:e.user_id,
     t:`${esc(e.pilot)} (${esc(e.airline)}) imported and got nothing`, s:esc(((e.data||{}).parser||"")+((e.data||{}).reason?" · "+(e.data||{}).reason:""))}));
-  (S.pilots||[]).filter(p=>!+p.months && (Date.now()-new Date(p.joined))>2*86400000 && (Date.now()-new Date(p.joined))<30*86400000).slice(0,8)
-    .forEach(p=>out.push({at:p.joined, dot:"warn", uid:p.id, t:`${esc(p.pilot)} (${esc(p.airline)}) signed up ${ago(p.joined)} and never imported`, s:"They may be stuck at the first step"}));
+  /* Signed up and nothing imported after 6 hours: say what they tried, from
+     their own records, so it is clear where they stopped. */
+  (S.pilots||[]).filter(p=>!+p.months && (Date.now()-new Date(p.joined))>6*3600000 && (Date.now()-new Date(p.joined))<30*86400000).slice(0,10)
+    .forEach(p=>{
+      const ev=(S.events||[]).filter(e=>e.user_id===p.id), has=k=>ev.some(e=>e.kind===k||(e.kind==="view"&&e.view===k));
+      const tried=[has("import")&&"opened Import", has("portal_open")&&"opened their airline's page", has("import_paste")&&"pasted",
+        has("import_file")&&"imported a file", has("import_screenshot")&&"added a screenshot", has("duty_added")&&"added a duty by hand",
+        has("import_empty")&&"an import read nothing", has("airline_request")&&"asked for their airline"].filter(Boolean);
+      out.push({at:p.joined, dot:"warn", uid:p.id, t:`${esc(p.pilot)} (${esc(p.airline)}) signed up ${ago(p.joined)}, no roster on the server yet`,
+        s: tried.length ? "They "+tried.join(", ") : "No sign of trying to import — they may be stuck at the first step"});
+    });
+  /* An airline nobody there has a roster from, and nobody has asked us to add:
+     its pilots have no way in. One line per airline. */
+  { const by={}; (S.pilots||[]).forEach(p=>{ const a=p.airline||"?"; (by[a] ||= []).push(p); });
+    const asked=new Set((S.requests||[]).map(r=>String(r.airline||"").toUpperCase()).concat((S.requests||[]).map(r=>String(r.airline_code||"").toUpperCase())));
+    Object.keys(by).forEach(a=>{ const ps=by[a]; if(a==="?" || ps.some(p=>+p.months) || asked.has(a.toUpperCase())) return;
+      const newest=ps.map(p=>p.joined).sort().pop();
+      out.push({at:newest, dot:"warn", uid:ps[0].id, t:`${esc(a)}: ${ps.length} pilot${ps.length===1?"":"s"}, no roster yet, nobody has sent us one`,
+        s:"The app can't read this airline yet — ask them for a screenshot of their roster page"}); }); }
   (S.errors||[]).filter(b=>+b.pilots>=2).slice(0,5).forEach(b=>out.push({at:b.last_at, dot:"bad",
     t:`A bug on ${num(b.pilots)} phones`, s:esc(String(b.msg).slice(0,110))}));
   out.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
@@ -523,6 +548,13 @@ function evDetail(kind,d){
   else if(kind==="error"||kind==="quiet_error") b.push(String(d.msg||d.what||"").slice(0,140));
   else if(kind==="app_open") b.push((d.roster!=null?num(d.roster)+" duties":"")+(d.log!=null?" · "+num(d.log)+" logbook entries":"")+(d.build?" · app "+d.build:""));
   else if(kind==="airline_request") b.push(String(d.airline||""));
+  else if(kind==="flights_sent") b.push(num(d.n)+" new flight"+(+d.n===1?"":"s")+" from their roster"+(+d.had?" ("+num(d.had)+" the list already had)":""));
+  else if(kind==="import_paste") b.push(num(d.added)+" added"+(+d.updated?" · "+num(d.updated)+" updated":"")+" from "+num(d.lines)+" lines");
+  else if(kind==="import_file") b.push((d.kind==="calendar"?"a calendar file":d.kind==="csv"?"a CSV":"a RosterView backup")+(d.n?" · "+num(d.n)+" entries":""));
+  else if(kind==="import_screenshot") b.push("kept under Original · "+num(d.kb)+" KB");
+  else if(kind==="portal_open") b.push((d.airline||"no airline")+(d.ready?"":" · not readable yet"));
+  else if(kind==="duty_added") b.push(String(d.type||""));
+  else if(kind==="import_empty") b.push([d.source, d.had, d.reason].filter(Boolean).join(" · "));
   else Object.keys(d).slice(0,3).forEach(k=>b.push(k+": "+String(d[k]).slice(0,40)));
   return esc(b.filter(Boolean).join(" · "));
 }
@@ -572,7 +604,7 @@ function pilotsTable(rows){
       <td><span class="tag${tagNum(p.app_tag) && tagNum(p.app_tag)<newest?" warn":""}">${esc(vlabel(p.app_tag))}</span></td>
       <td class="num">${+p.months?num(p.months):`<span class="tag warn">none</span>`}</td>
       <td>${im?`<a href="#" onclick="event.stopPropagation();openImport(${im.report_id?+im.report_id:"null"},'${esc(im.user_id)}','${esc(im.month||"")}');return false">${esc(im.month||"?")}</a>
-          ${+im.blank_days?`<span class="tag warn">${num(im.blank_days)} blank</span>`:""}${+im.unknown?`<span class="tag bad">${num(im.unknown)} unknown</span>`:""}${!+im.blank_days&&!+im.unknown?`<span class="tag good">clean</span>`:""}
+          ${+im.blank_days?`<span class="tag warn">${num(im.blank_days)} unread</span>`:""}${+im.unknown?`<span class="tag bad">${num(im.unknown)} unknown</span>`:""}${!+im.blank_days&&!+im.unknown?`<span class="tag good">clean</span>`:""}
           <br><span class="faint">${num(im.duties_out)} duties · ${ago(im.at)}</span>`:`<span class="faint">–</span>`}</td>
       <td class="num">${+p.log_entries?`<span class="tag good">yes</span><br><span class="faint">${num(p.log_entries)}</span>`:`<span class="faint">no</span>`}</td>
       <td class="num">${+p.errors_7d?`<span class="tag bad">${num(p.errors_7d)}</span>`:"–"}</td></tr>`; }).join("")}
@@ -690,7 +722,7 @@ function importsHtml(){
     ${rows.map(i=>`<tr class="tap" onclick="openImport(${i.report_id?+i.report_id:"null"},'${esc(i.user_id)}','${esc(i.month||"")}')">
       <td><span class="who">${esc(i.pilot)}</span> <span class="faint">${esc(i.airline)}</span></td>
       <td>${esc(i.month||"?")}</td><td class="num">${num(i.duties_out)}<br><span class="faint">${num(i.flights)} flights</span></td>
-      <td>${+i.blank_days?`<span class="tag warn">${num(i.blank_days)} blank</span> `:""}${+i.unknown?`<span class="tag bad">${num(i.unknown)} unknown</span>`:""}${!+i.blank_days&&!+i.unknown?`<span class="tag good">clean</span>`:""}
+      <td>${+i.blank_days?`<span class="tag warn">${num(i.blank_days)} unread</span> `:""}${+i.unknown?`<span class="tag bad">${num(i.unknown)} unknown</span>`:""}${!+i.blank_days&&!+i.unknown?`<span class="tag good">clean</span>`:""}
         ${i.report_id?"":`<br><span class="faint" style="font-size:11.5px">no page kept</span>`}</td>
       <td class="num muted">${ago(i.at)}</td></tr>`).join("")}</tbody></table></div>`;
 }
@@ -729,13 +761,13 @@ function importOverlayHtml(){
     Object.keys(tr).forEach(k=>{ let d=tr[k].a, g=0; while(d<=tr[k].b && g++<40){ (cover[d]=cover[d]||[]).push({k:"trip", name:k}); d=addD(d,1); } });
     const blank=days.filter(d=>!(byDay[d]||[]).length && !cover[d]).length, unk=items.filter(d=>d.type==="unknown").length;
     right=`<div class="faint" style="margin-bottom:8px">${esc(R.airline||"")} · ${esc(R.parser||"")} · ${num(items.length)} duties ·
-        <span class="tag warn">${blank} blank day${blank===1?"":"s"}</span> <span class="tag bad">${unk} unknown</span></div>
+        ${blank?`<span class="tag">${blank} empty day${blank===1?"":"s"} \u2014 roster still being built</span>`:""} <span class="tag ${unk?"bad":"good"}">${unk} unknown</span></div>
       ${days.map(d=>{ const L=byDay[d]||[]; const isUnk=L.some(x=>x.type==="unknown");
         const cv=cover[d]||[], land=cv.find(c=>c.k==="land"), trip=cv.find(c=>c.k==="trip");
         const why = land ? `Landing day — ${esc(land.x.no||"flight")} ${esc(land.x.from||"")}–${esc(land.x.to||"")} lands ${esc(land.x.arr||"")}`
                   : trip ? `Layover — part of trip ${esc(trip.name)}` : "";
-        return `<div class="dayr${!L.length&&!cv.length?" blank":(isUnk?" unk":"")}"><b>${esc(new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"}))}</b>
-          <div>${!L.length?(why?`<span class="muted">${why}</span>`:`<span class="muted">Unallocated — nothing was read for this day</span>`):L.map(x=>`<div class="duty">
+        return `<div class="dayr${isUnk?" unk":""}"><b>${esc(new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"}))}</b>
+          <div>${!L.length?(why?`<span class="muted">${why}</span>`:`<span class="faint">Empty — roster still being built</span>`):L.map(x=>`<div class="duty">
             <span class="tag ${x.type==="unknown"?"bad":(x.guessed?"warn":"")}">${esc(x.type||"?")}</span>
             <b>${esc(x.code||x.no||"")}</b> <span class="muted">${esc(x.label||((x.from||"")+(x.to?"–"+x.to:"")))}</span>
             <span class="faint">${esc([x.start||x.dep, x.end||x.arr].filter(Boolean).join("–"))}</span>
@@ -862,7 +894,19 @@ async function setPilotLogbook(id, on){
 function pilotMonth(d){ const P=S.pilot; if(!P||!P.months) return; P.mi=Math.max(0, Math.min(P.months.length-1, (P.mi||0)+d)); P.showList=false; draw(); }
 function rosterBlockHtml(P){
   const months=P.months||[];
-  if(!months.length) return `<h2 style="font-size:13px;margin:6px 0 6px">Roster</h2><div class="empty" style="margin-bottom:14px">Nothing imported yet.</div>`;
+  if(!months.length){
+    const ev=P.events||[], has=k=>ev.some(e=>e.kind===k||(e.kind==="view"&&e.view===k));
+    const tried=[has("import")&&"opened Import", has("portal_open")&&"opened their airline's page", has("import_paste")&&"pasted a roster",
+      has("import_file")&&"imported a file", has("import_screenshot")&&"added a screenshot", has("duty_added")&&"added a duty by hand",
+      has("import_empty")&&"an import read nothing", has("flights_sent")&&"has flights on their phone", has("airline_request")&&"asked for their airline"].filter(Boolean);
+    const i=P.info||{}, first=String(i.pilot||"").split(" ")[0]||"there";
+    const body=`Hi ${first},\n\nThanks for joining RosterView. I can see your roster hasn't come in yet${i.airline&&i.airline!=="?"?" — "+i.airline+" isn't one the app can read automatically yet":""}.\n\nCould you send me a screenshot of your roster page (and the web address you read it on)? You can do it in the app with "Send my roster", or just reply to this email. I'll build it so you and your colleagues can import in one tap.\n\nThanks!`;
+    const mail=i.email ? `mailto:${encodeURIComponent(i.email)}?subject=${encodeURIComponent("Your roster in RosterView")}&body=${encodeURIComponent(body)}` : "";
+    return `<h2 style="font-size:13px;margin:6px 0 6px">Roster</h2><div class="empty" style="margin-bottom:10px">No roster on the server yet.${
+      tried.length?`<br><span style="font-size:12.5px">So far they ${esc(tried.join(", "))}. The timeline below has the detail.</span>`:""}</div>
+      ${mail?`<div class="row-form" style="margin-bottom:14px"><a class="btn sm primary" href="${esc(mail)}">Email them for a roster screenshot</a>
+        <span class="faint" style="font-size:12px">Opens your own mail app with the message written; nothing is sent until you press Send.</span></div>`:""}`;
+  }
   const mo=months[P.mi||0], duties=Array.isArray(mo.data)?mo.data:[];
   const y=+mo.month.slice(0,4), m=+mo.month.slice(5,7), days=new Date(y, m, 0).getDate(), first=(new Date(y, m-1, 1).getDay()+6)%7;
   const byDay={}; duties.forEach(e=>{ const d=String(e.date||""); if(d.slice(0,7)===mo.month) (byDay[+d.slice(8,10)] ||= []).push(e); });
