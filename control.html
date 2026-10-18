@@ -199,6 +199,10 @@ button.kpi.tapk:hover{outline:2px solid var(--line)}
 .gate .btn{padding:12px; font-size:15px}
 .gate .err{color:var(--bad-ink); font-size:13px; min-height:18px}
 .sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
+
+  .msgc textarea, .msgc input{box-sizing:border-box; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit}
+  .msgi{padding:10px 0; border-top:1px solid var(--line); font-size:13.5px}
+  .msgr{margin-top:8px; padding:8px 10px; border-radius:10px; background:color-mix(in srgb, var(--accent, #4aa3d6) 10%, transparent); display:flex; flex-direction:column; gap:8px}
 </style>
 </head>
 <body>
@@ -259,6 +263,7 @@ const KINDS={
   duty_added:      {t:"Added a duty by hand",          k:"",   i:"+"},
   flights_sent:    {t:"Shared flights with the flight list", k:"", i:"✈"},
   code_named:      {t:"Named a duty code",             k:"acc",i:"✎"},
+  codes_named:     {t:"Got your code names",           k:"",   i:"✓"},
   log_lock:        {t:"Locked or unlocked a flight",   k:"",   i:"🔒"},
   log_restore:     {t:"Put a logbook backup back",     k:"acc",i:"↺"},
   whats_new:       {t:"Saw what's new",                k:"",   i:"★"},
@@ -331,7 +336,8 @@ async function tryRpc(fn, args, fallback){
 }
 
 /* ---------- state ---------- */
-const S={seenAir:"AJX", seen:[], seenAll:false, nm:{}, hotels:[], htForm:{},
+const S={msgs:[], msgTo:"all", msgForm:{},
+         seenAir:"AJX", seen:[], seenAll:false, nm:{}, hotels:[], htForm:{},
          pNew:false, sugg:[], sgEdit:{}, anyCode:{}, pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
          sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
          missing:new Set(), view:"", kind:"", q:"", chart:"active", loadedAt:0, err:"", pilot:null, timer:null};
@@ -345,6 +351,7 @@ async function load(){
     S.lbhelp=await tryRpc("admin_logbook_help",{},[]) || [];
     S.sugg=await tryRpc("admin_code_suggestions",{},[]) || [];
     S.hotels=await tryRpc("admin_hotels",{},[]) || [];
+    S.msgs=await tryRpc("admin_messages_list",{},[]) || [];
     S.seen=await tryRpc("admin_codes_seen",{p_airline:S.seenAir||"AJX"},[]) || [];
     const [sum,daily,online,events,errors,screens,funnel,pilots,requests]=await Promise.all([
       tryRpc("admin_cr_summary",{},[]), tryRpc("admin_cr_daily",{p_days:60},[]), tryRpc("admin_cr_online",{p_minutes:15},[]),
@@ -399,6 +406,8 @@ function draw(){
         <div class="cap">Every roster brought in, newest first. Blank days are days the page had and the app read nothing for. Click one to see the original beside what was read.</div>${importsHtml()}</section>
       <section class="card c12" aria-labelledby="hSug"><h2 id="hSug">Codes pilots named</h2>
         <div class="cap">A pilot named a code the app didn't know, or asked to change one in the list (\ud83d\udd12). Approve puts it in the master list for that airline: it is locked, and every pilot there gets it the next time the app opens.</div>${suggHtml()}</section>
+      <section class="card c12" aria-labelledby="hMsg"><h2 id="hMsg">Messages to pilots</h2>
+        <div class="cap">Shown in the app as "Message from RosterView" the next time each pilot opens it. They tap OK or reply; replies appear here. To one pilot: open them in All pilots.</div>${msgsHtml()}</section>
       <section class="card c12" aria-labelledby="hSeen"><h2 id="hSeen">Name your airline's codes</h2>
         <div class="cap">Every code on the rosters of one airline's pilots — how often, on which days, at what times. The app ships no names: what you type here is what every pilot there reads, from the next time the app opens. Name them from what the roster shows.</div>${seenHtml()}</section>
       <section class="card c12" aria-labelledby="hHot"><h2 id="hHot">Crew hotels</h2>
@@ -564,6 +573,8 @@ function evDetail(kind,d){
   else if(kind==="import_paste") b.push(num(d.added)+" added"+(+d.updated?" · "+num(d.updated)+" updated":"")+" from "+num(d.lines)+" lines");
   else if(kind==="import_file") b.push((d.kind==="calendar"?"a calendar file":d.kind==="csv"?"a CSV":"a RosterView backup")+(d.n?" · "+num(d.n)+" entries":""));
   else if(kind==="import_screenshot") b.push("kept under Original · "+num(d.kb)+" KB");
+  else if(kind==="codes_named") b.push((d.codes?String(d.codes):num(d.n)+" code"+(+d.n===1?"":"s"))+" — names you set, now on their days");
+  else if(kind==="code_named") b.push([d.code, d.label?"“"+d.label+"”":"", d.locked?"asked to change a locked code":""].filter(Boolean).join(" · ")+" — see Codes pilots named");
   else if(kind==="portal_open") b.push((d.airline||"no airline")+(d.ready?"":" · not readable yet"));
   else if(kind==="duty_added") b.push(String(d.type||""));
   else if(kind==="import_empty") b.push([d.source, d.had, d.reason].filter(Boolean).join(" · "));
@@ -769,6 +780,50 @@ async function saveSeen(code){
   if(DEMO){ Object.assign(c,{named_type:type, named_label:label, named_about:about}); delete S.nm[code]; draw(); return; }
   try{ await rpc("admin_code_set",{p_airline:S.seenAir, p_code:code, p_type:type, p_label:label, p_about:about||null}); delete S.nm[code]; await loadSeen(); }
   catch(err){ alert("Couldn't save: "+err.message); }
+}
+
+/* ---------- messages to pilots (part 48) ---------- */
+function msgComposeHtml(k, who){
+  if(S.missing.has("admin_messages_list")) return `<div class="empty" style="margin-bottom:12px">Run SQL part 48 in Supabase, then reload.</div>`;
+  const f=S.msgForm[k]||{};
+  return `<div class="msgc">
+    ${k==="all"?`<div class="row-form" style="margin:0 0 8px"><label class="muted" style="font-size:12.5px">To</label>
+      <select id="msgTo" onchange="S.msgTo=this.value">${[["all","Everyone"]].concat(airlineChoices("").map(a=>[a,"Everyone at "+a])).map(([v,l])=>`<option value="${esc(v)}"${S.msgTo===v?" selected":""}>${esc(l)}</option>`).join("")}</select></div>`:""}
+    <input id="msgT_${k}" placeholder="Title (optional)" maxlength="80" value="${esc(f.title||"")}" oninput="(S.msgForm['${k}']=S.msgForm['${k}']||{}).title=this.value" style="width:100%;margin-bottom:6px">
+    <textarea id="msgB_${k}" placeholder="Message to ${esc(who)}" maxlength="2000" oninput="(S.msgForm['${k}']=S.msgForm['${k}']||{}).body=this.value" style="width:100%;min-height:80px">${esc(f.body||"")}</textarea>
+    <div class="row-form" style="margin:6px 0 12px"><button class="btn sm primary" onclick="sendMsg('${k}')">Send</button>
+      <span class="faint" style="font-size:12px">Shown in their app the next time they open it.</span></div></div>`;
+}
+function msgReplies(m){ const r=Array.isArray(m.replies)?m.replies:[];
+  return r.length?`<div class="msgr">${r.map(x=>`<div><b>${esc(x.pilot||"")}</b> <span class="faint">${x.at?ago(x.at):""}</span><br>${esc(x.reply||"").replace(/\n/g,"<br>")}</div>`).join("")}</div>`:""; }
+function pilotMsgsHtml(uid){
+  const mine=(S.msgs||[]).filter(m=>m.to_user===uid);
+  return mine.length?`<div style="margin:-4px 0 12px">${mine.map(m=>`<div class="msgi"><div class="faint" style="font-size:12px">${ago(m.created_at)} · ${+m.reads?"read":"not read yet"}</div>
+    ${m.title?`<b>${esc(m.title)}</b><br>`:""}${esc(m.body).replace(/\n/g,"<br>")}${msgReplies(m)}</div>`).join("")}</div>`:"";
+}
+function msgsHtml(){
+  const list=(S.msgs||[]);
+  return msgComposeHtml("all","everyone")+(list.length?`<div class="scroll" style="max-height:520px">${list.map(m=>`<div class="msgi">
+      <div class="row-form" style="margin:0;justify-content:space-between"><span><b>${esc(m.to_label)}</b> <span class="faint">· ${ago(m.created_at)} · read by ${num(m.reads)}${(m.replies||[]).length?" · "+num(m.replies.length)+" repl"+(m.replies.length===1?"y":"ies"):""}</span></span>
+        <button class="btn sm" onclick="deleteMsg(${+m.id})">Delete</button></div>
+      ${m.title?`<b>${esc(m.title)}</b><br>`:""}<span class="muted">${esc(m.body).replace(/\n/g,"<br>")}</span>${msgReplies(m)}</div>`).join("")}</div>`:`<div class="empty">No messages sent yet.</div>`);
+}
+async function sendMsg(k){
+  const t=((document.getElementById("msgT_"+k)||{}).value||"").trim(), b=((document.getElementById("msgB_"+k)||{}).value||"").trim();
+  if(!b){ alert("Write the message first."); return; }
+  let to=null, air=null, all=false, label="";
+  if(k==="p"){ to=S.pilot && S.pilot.id; label=(S.pilot&&S.pilot.info&&S.pilot.info.pilot)||"this pilot"; }
+  else if(S.msgTo==="all"){ all=true; label="EVERY pilot"; } else { air=S.msgTo; label="every pilot at "+air; }
+  if(!confirm("Send to "+label+"?\n\n"+(t?t+"\n":"")+b)) return;
+  if(DEMO){ S.msgs.unshift({id:Date.now(), to_label:k==="p"?label:(all?"Everyone":"Everyone at "+air), to_user:to, title:t, body:b, created_at:new Date().toISOString(), reads:0, replies:[]}); S.msgForm[k]={}; draw(); return; }
+  try{ await rpc("admin_message_send",{p_to:to, p_airline:air, p_all:all, p_title:t, p_body:b}); S.msgForm[k]={};
+    S.msgs=await tryRpc("admin_messages_list",{},[])||[]; draw(); }
+  catch(e){ alert(/admin_message_send|PGRST202|does not exist/.test(e.message)?"Run SQL part 48 first.":"Couldn't send: "+e.message); }
+}
+async function deleteMsg(id){
+  if(!confirm("Delete this message? Pilots who haven't opened the app yet won't see it.")) return;
+  if(DEMO){ S.msgs=S.msgs.filter(m=>m.id!==id); draw(); return; }
+  try{ await rpc("admin_message_delete",{p_id:id}); S.msgs=await tryRpc("admin_messages_list",{},[])||[]; draw(); }catch(e){ alert(e.message); }
 }
 
 /* ---------- crew hotels (part 46) ---------- */
@@ -1092,6 +1147,9 @@ function drawerHtml(){
         <div><b>${i.log_entries?num(i.log_entries):"–"}</b><span>logbook entries${i.log_minutes?" · "+hm(i.log_minutes):""}</span></div>
         <div><b class="${+i.errors_7d?"":""}" style="${+i.errors_7d?"color:var(--bad-ink)":""}">${num(i.errors_7d)}</b><span>errors in 7 days</span></div>
       </div>
+      <h2 style="font-size:13px;margin:6px 0 6px">Send ${esc((i.pilot||"them").split(" ")[0])} a message</h2>
+      ${msgComposeHtml("p", i.pilot||"this pilot")}
+      ${pilotMsgsHtml(P.id)}
       <h2 style="font-size:13px;margin:6px 0 6px">Airline</h2>
       <div class="row-form" style="margin-bottom:14px">
         <select id="mvAir" aria-label="Airline">${airlineChoices(i.airline).map(a=>`<option${a===i.airline?" selected":""}>${esc(a)}</option>`).join("")}</select>
@@ -1233,6 +1291,7 @@ function demoData(){
           {code:"OMBE",kind:"sim",times:6,pilots:4,first_day:"2026-09-14",last_day:"2026-11-12",days:["2026-11-12","2026-10-14"],hours:["09:00–13:00"]},
           {code:"GSD",kind:"ground",times:11,pilots:6,first_day:"2026-10-25",last_day:"2026-11-08",days:["2026-11-08","2026-10-25"],hours:["15:00–18:00"]},
           {code:"KJD",kind:"hotel",times:3,pilots:2,first_day:"2026-10-09",last_day:"2026-10-09",days:["2026-10-09"],hours:["09:00–18:00"],named_type:"ground",named_label:"Kaizen day"}];
+  S.msgs=[{id:1,to_label:"Everyone at AJX",to_user:null,title:"Rest is here",body:"Try the new Rest tab and tell me what you think.",created_at:new Date(now-2*day).toISOString(),reads:7,replies:[{pilot:"Chris Lee",reply:"Love it — the nap suggestion was spot on.",at:new Date(now-day).toISOString()}]}];
   S.hotels=[{id:1,airline:"AJX",airport:"BKK",name:"Pilot-shared Hotel Bangkok",address:"Sukhumvit",status:"pending",pilot:"Chris Lee",created_at:new Date(now-50*min).toISOString(),current_name:null},
             {id:2,airline:"AJX",airport:"SIN",name:"Example Hotel Singapore",address:"Novena",status:"approved",pilot:"(owner)",created_at:new Date(now-3*day).toISOString()}];
   S.requests=[{id:"rq1",user_id:"p8",airline:"Oman Air",pilot:"Omar Haddad",email:"omar.haddad@example.test",status:"new",samples:2,crew_system:"AIMS / eCrew",
