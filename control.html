@@ -307,7 +307,10 @@ async function rpc(fn, args){
   let r=await call();
   if(r.status===401){ if(await renew()) r=await call(); else throw new Error("signed out"); }
   if(!r.ok){ const b=await r.json().catch(()=>({})); const e=new Error(b.message||("HTTP "+r.status)); e.code=b.code; throw e; }
-  return r.json();
+  // a function that returns nothing (approve, reject, delete) answers with an
+  // empty body — that is success, not "unexpected end of JSON input"
+  const t=await r.text();
+  return t ? JSON.parse(t) : null;
 }
 async function rest(path){
   let s=sess(); if(!s) throw new Error("signed out");
