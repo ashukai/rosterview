@@ -202,6 +202,14 @@ button.kpi.tapk:hover{outline:2px solid var(--line)}
 
   .msgc textarea, .msgc input{box-sizing:border-box; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit}
   .msgi{padding:10px 0; border-top:1px solid var(--line); font-size:13.5px}
+  .autog{display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px}
+  .autoc{border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:8px}
+  .autoc.on{border-color:color-mix(in srgb, var(--good, #2e9d57) 55%, transparent)}
+  .autoc textarea, .autoc input:not([type=checkbox]){box-sizing:border-box; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit}
+  .autoc textarea{width:100%; min-height:110px} .autoc input.at{width:100%}
+  .autosw{display:inline-flex; gap:6px; align-items:center; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap}
+  .autoprev{padding:10px 12px; border-radius:10px; background:var(--fill); font-size:13.5px; line-height:1.45}
+  .autoprev .faint{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px}
   .msgr{margin-top:8px; padding:8px 10px; border-radius:10px; background:color-mix(in srgb, var(--accent, #4aa3d6) 10%, transparent); display:flex; flex-direction:column; gap:8px}
 </style>
 </head>
@@ -336,7 +344,7 @@ async function tryRpc(fn, args, fallback){
 }
 
 /* ---------- state ---------- */
-const S={msgs:[], msgTo:"all", msgForm:{},
+const S={msgs:[], msgTo:"all", msgForm:{}, auto:[], autoForm:{}, gaps:[], gapForm:{},
          seenAir:"AJX", seen:[], seenAll:false, nm:{}, hotels:[], htForm:{},
          pNew:false, sugg:[], sgEdit:{}, anyCode:{}, pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
          sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
@@ -352,6 +360,8 @@ async function load(){
     S.sugg=await tryRpc("admin_code_suggestions",{},[]) || [];
     S.hotels=await tryRpc("admin_hotels",{},[]) || [];
     S.msgs=await tryRpc("admin_messages_list",{},[]) || [];
+    S.auto=await tryRpc("admin_auto_list",{},[]) || [];
+    S.gaps=await tryRpc("admin_profile_gaps",{},[]) || [];
     S.seen=await tryRpc("admin_codes_seen",{p_airline:S.seenAir||"AJX"},[]) || [];
     const [sum,daily,online,events,errors,screens,funnel,pilots,requests]=await Promise.all([
       tryRpc("admin_cr_summary",{},[]), tryRpc("admin_cr_daily",{p_days:60},[]), tryRpc("admin_cr_online",{p_minutes:15},[]),
@@ -373,6 +383,7 @@ function startLive(){ clearInterval(S.timer); S.timer=setInterval(()=>{
    DRAWING
    ========================================================================= */
 function draw(){
+  tidyNames();
   const root=$("#root");
   if(!DEMO && !sess()){ root.innerHTML=gateHtml(); wireGate(); return; }
   if(S.sum===null && !S.err && !DEMO && !S.loadedAt){ root.innerHTML=`<div class="wrap"><div class="empty">Loading…</div></div>`; return; }
@@ -408,6 +419,10 @@ function draw(){
         <div class="cap">A pilot named a code the app didn't know, or asked to change one in the list (\ud83d\udd12). Approve puts it in the master list for that airline: it is locked, and every pilot there gets it the next time the app opens.</div>${suggHtml()}</section>
       <section class="card c12" aria-labelledby="hMsg"><h2 id="hMsg">Messages to pilots</h2>
         <div class="cap">Shown in the app as "Message from RosterView" the next time each pilot opens it. They tap OK or reply; replies appear here. To one pilot: open them in All pilots.</div>${msgsHtml()}</section>
+      <section class="card c12" aria-labelledby="hGaps"><h2 id="hGaps">Missing a name or staff number</h2>
+        <div class="cap">Pilots without a first name and surname in full, or without a staff number — how crew find each other. The app asks them itself, once a day, until it's done. Nothing goes out until you press Send — one message per pilot, once. A pilot drops off this list the moment they fill it in.</div>${gapsHtml()}</section>
+      <section class="card c12" aria-labelledby="hAuto"><h2 id="hAuto">Automatic follow-ups</h2>
+        <div class="cap">Sent by themselves to a pilot who still has no roster in, the next time they open the app — once each, never again. Write it once and switch it on. <b>{first}</b> becomes their first name ("there" when the app only has an initial), <b>{airline}</b> their airline.</div>${autoHtml()}</section>
       <section class="card c12" aria-labelledby="hSeen"><h2 id="hSeen">Name your airline's codes</h2>
         <div class="cap">Every code on the rosters of one airline's pilots — how often, on which days, at what times. The app ships no names: what you type here is what every pilot there reads, from the next time the app opens. Name them from what the roster shows.</div>${seenHtml()}</section>
       <section class="card c12" aria-labelledby="hHot"><h2 id="hHot">Crew hotels</h2>
@@ -798,11 +813,11 @@ function msgReplies(m){ const r=Array.isArray(m.replies)?m.replies:[];
   return r.length?`<div class="msgr">${r.map(x=>`<div><b>${esc(x.pilot||"")}</b> <span class="faint">${x.at?ago(x.at):""}</span><br>${esc(x.reply||"").replace(/\n/g,"<br>")}</div>`).join("")}</div>`:""; }
 function pilotMsgsHtml(uid){
   const mine=(S.msgs||[]).filter(m=>m.to_user===uid);
-  return mine.length?`<div style="margin:-4px 0 12px">${mine.map(m=>`<div class="msgi"><div class="faint" style="font-size:12px">${ago(m.created_at)} · ${+m.reads?"read":"not read yet"}</div>
+  return mine.length?`<div style="margin:-4px 0 12px">${mine.map(m=>`<div class="msgi"><div class="faint" style="font-size:12px">${m.auto_key?"Automatic · ":""}${ago(m.created_at)} · ${+m.reads?"read":"not read yet"}</div>
     ${m.title?`<b>${esc(m.title)}</b><br>`:""}${esc(m.body).replace(/\n/g,"<br>")}${msgReplies(m)}</div>`).join("")}</div>`:"";
 }
 function msgsHtml(){
-  const list=(S.msgs||[]);
+  const list=(S.msgs||[]).filter(m=>!m.auto_key);         // the automatic ones are counted under Automatic follow-ups
   return msgComposeHtml("all","everyone")+(list.length?`<div class="scroll" style="max-height:520px">${list.map(m=>`<div class="msgi">
       <div class="row-form" style="margin:0;justify-content:space-between"><span><b>${esc(m.to_label)}</b> <span class="faint">· ${ago(m.created_at)} · read by ${num(m.reads)}${(m.replies||[]).length?" · "+num(m.replies.length)+" repl"+(m.replies.length===1?"y":"ies"):""}</span></span>
         <button class="btn sm" onclick="deleteMsg(${+m.id})">Delete</button></div>
@@ -824,6 +839,129 @@ async function deleteMsg(id){
   if(!confirm("Delete this message? Pilots who haven't opened the app yet won't see it.")) return;
   if(DEMO){ S.msgs=S.msgs.filter(m=>m.id!==id); draw(); return; }
   try{ await rpc("admin_message_delete",{p_id:id}); S.msgs=await tryRpc("admin_messages_list",{},[])||[]; draw(); }catch(e){ alert(e.message); }
+}
+
+/* The server labels a pilot as name + surname key, and the name already holds
+   the surname: "Kenji Sato SATO", "SMITH, J SMITH". Shown without the repeat. */
+function pname(v){
+  const s=String(v==null?"":v).trim(), w=s.split(/\s+/); if(w.length<2) return s;
+  const last=w[w.length-1].toUpperCase(), rest=w.slice(0,-1).join(" ");
+  return rest.toUpperCase().split(/[\s,]+/).indexOf(last)>=0 ? rest : s;
+}
+function tidyNames(){
+  const fix=o=>{ if(!o||typeof o!=="object") return;
+    ["pilot","to_label"].forEach(k=>{ if(typeof o[k]==="string") o[k]=pname(o[k]); });
+    if(Array.isArray(o.replies)) o.replies.forEach(fix); };
+  ["pilots","events","imports","msgs","auto","requests","sugg","hotels","lbhelp","online","errors","gaps"].forEach(k=>{ if(Array.isArray(S[k])) S[k].forEach(fix); });
+  if(S.pilot && S.pilot.info) fix(S.pilot.info);
+}
+
+/* ---------- full name and staff number (part 50) ---------- */
+/* SQL part 50 only FINDS them. Nothing is sent until the owner reads the list
+   and the message (filled in for each pilot) and presses Send here. */
+const GAP_TITLE="Please complete your RosterView profile",
+      GAP_BODY="Hi {first} — your RosterView profile is missing your {missing}.\n\nCrew find each other by full name and staff number: it's what Crew search looks for, and how your name appears on crew lists and dinner plans. With only part of it, colleagues may not find you.\n\nIt takes ten seconds: tap your profile at the top of the screen, fill in First name, Surname and Staff number — names in full, as your airline has them — and tap Save.\n\nThank you!";
+/* The same as the server's rv_first_name: "Kenji" from "Kenji Sato" or
+   "SATO, Kenji"; an initial, or nothing, is "there". */
+function gapFirst(name){
+  const n=String(name||"").trim().replace(/\s+/g," ");
+  const given=(n.indexOf(",")>=0 ? (n.split(",")[1]||"") : n.replace(/\s*\S+$/,"")).trim();
+  if((given.match(/\p{L}/gu)||[]).length<2) return "there";
+  return given.split(" ")[0].toLowerCase().replace(/(^|[^\p{L}\p{N}])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase());
+}
+function gapFill(str, x){ return String(str||"").split("{first}").join(gapFirst(x.pilot)).split("{missing}").join((x.missing||[]).join(" and ")); }
+function gapVal(k){ const f=S.gapForm; return f[k]!=null ? f[k] : (k==="title"?GAP_TITLE:GAP_BODY); }
+function gapTodo(){ return (S.gaps||[]).filter(x=>!x.messaged_at); }
+function gapPrevHtml(){
+  const todo=gapTodo(); if(!todo.length) return "";
+  const i=((S.gapPrev||0)%todo.length+todo.length)%todo.length, x=todo[i];
+  return `<div class="faint" style="display:flex;justify-content:space-between;gap:8px"><span>What <b>${esc(x.pilot)}</b> will read</span>
+      ${todo.length>1?`<a href="#" style="text-transform:none;letter-spacing:0" onclick="S.gapPrev=${i+1};gapPrevDraw();return false">Next pilot ›</a>`:""}</div>
+    <b>${esc(gapFill(gapVal("title"),x))}</b><br>${esc(gapFill(gapVal("body"),x)).replace(/\n/g,"<br>")}`;
+}
+function gapPrevDraw(){ const el=$("#gapPrev"); if(el) el.innerHTML=gapPrevHtml(); }
+function gapEdit(k,v){ S.gapForm[k]=v; gapPrevDraw(); }
+function gapsHtml(){
+  if(S.missing.has("admin_profile_gaps")) return `<div class="empty">Run SQL part 50 in Supabase, then reload.</div>`;
+  const g=S.gaps||[];
+  if(!g.length) return `<div class="empty">Everyone has a full name and a staff number.</div>`;
+  const sent=g.filter(x=>x.messaged_at).length, read=g.filter(x=>x.read_at).length, todo=g.length-sent;
+  return `<div class="faint" style="font-size:12.5px;margin-bottom:8px">${num(g.length)} pilot${g.length===1?"":"s"} missing something · ${num(sent)} messaged · ${num(read)} read</div>
+    <div class="scroll" style="max-height:360px"><table class="compact"><thead><tr><th>Pilot</th><th>Missing</th><th class="num">Last seen</th><th>Message</th></tr></thead><tbody>
+    ${g.map(x=>`<tr class="tap" onclick="openPilot('${esc(x.id)}')">
+      <td><span class="who">${esc(x.pilot)}</span><br><span class="faint">${esc(x.airline)}${x.staff?" · #"+esc(x.staff):""}</span></td>
+      <td>${(x.missing||[]).map(m=>`<span class="tag warn">${esc(m)}</span>`).join(" ")}</td>
+      <td class="num muted">${x.last_seen?ago(x.last_seen):"–"}</td>
+      <td>${x.reply?`<span class="tag good">replied</span><br><span class="faint">${esc(x.reply)}</span>`
+           :x.read_at?`<span class="tag good">read</span> <span class="faint">${ago(x.read_at)}</span>`
+           :x.messaged_at?`<span class="faint">sent ${ago(x.messaged_at)} · not read yet</span>`:`<span class="faint">not sent yet</span>`}</td></tr>`).join("")}
+    </tbody></table></div>
+    ${todo ? `<div class="msgc" style="margin-top:12px">
+      <div class="row-form" style="margin:0 0 8px;justify-content:space-between">
+        <span><b>Ready to send</b> <span class="faint">— each pilot reads it with their own first name and exactly what they're missing.</span></span>
+        <button class="btn primary" onclick="sendGaps()">Send to ${num(todo)} pilot${todo===1?"":"s"}</button></div>
+      <div class="autoprev" id="gapPrev" style="margin-bottom:10px">${gapPrevHtml()}</div>
+      <details><summary class="faint" style="cursor:pointer;font-size:12.5px">Edit the message</summary>
+        <input id="gapT" maxlength="80" value="${esc(gapVal("title"))}" oninput="gapEdit('title',this.value)" style="width:100%;margin:8px 0 6px">
+        <textarea id="gapB" maxlength="2000" oninput="gapEdit('body',this.value)" style="width:100%;min-height:150px">${esc(gapVal("body"))}</textarea>
+        <div class="faint" style="font-size:12px;margin-top:4px"><b>{first}</b> = first name ("there" if none) · <b>{missing}</b> = e.g. "first name and staff number"</div></details></div>` : ""}`;
+}
+async function sendGaps(){
+  const t=String(gapVal("title")||"").trim(), b=String(gapVal("body")||"").trim();
+  if(!b){ alert("Write the message first."); return; }
+  const todo=gapTodo(); if(!todo.length) return;
+  if(!confirm("Send to "+todo.length+" pilot"+(todo.length===1?"":"s")+"?\n\nThey see it the next time they open the app. For example, "+todo[0].pilot+" reads:\n\n"+gapFill(t,todo[0])+"\n"+gapFill(b,todo[0]))) return;
+  if(DEMO){ todo.forEach(x=>x.messaged_at=new Date().toISOString()); S.gapForm={}; draw(); return; }
+  try{ const n=await rpc("admin_profile_nudge",{p_title:t, p_body:b}); S.gapForm={};
+    S.gaps=await tryRpc("admin_profile_gaps",{},[])||[]; S.msgs=await tryRpc("admin_messages_list",{},[])||[]; draw();
+    alert("Sent to "+(+n||0)+" pilot"+(+n===1?"":"s")+". They see it the next time they open the app."); }
+  catch(e){ alert(/admin_profile_nudge|PGRST202|does not exist/.test(e.message)?"Run SQL part 50 first.":"Couldn't send: "+e.message); }
+}
+
+/* ---------- automatic follow-ups (part 49) ----------
+   Two messages, one per way a new pilot gets stuck. Off until switched on;
+   each pilot gets each one once. Edits wait for Save; the switch saves at once
+   (with what is on screen), after showing exactly what pilots will read. */
+const AUTO_INFO={no_import:["No roster yet","Their airline can be read, but nothing has been imported."],
+                 no_reader:["Airline not readable yet","The app can't read their airline, and they haven't sent a screenshot."]};
+function autoFill(s, key){ return String(s||"").replace(/\{first\}/g,"Kenji").replace(/\{airline\}/g, key==="no_reader"?"Oman Air":"Air Japan"); }
+function autoVal(a, k){ const f=S.autoForm[a.key]||{}; return f[k]!==undefined ? f[k] : a[k]; }
+function autoPrevHtml(a){ return `<div class="faint">What a pilot sees</div>${autoVal(a,"title")?`<b>${esc(autoFill(autoVal(a,"title"),a.key))}</b><br>`:""}${esc(autoFill(autoVal(a,"body"),a.key)).replace(/\n/g,"<br>")}`; }
+function autoEdit(key, k, v){
+  (S.autoForm[key]=S.autoForm[key]||{})[k]=v;
+  const a=(S.auto||[]).find(x=>x.key===key), el=document.getElementById("autoPrev_"+key);
+  if(a && el) el.innerHTML=autoPrevHtml(a);
+}
+function autoHtml(){
+  if(S.missing.has("admin_auto_list")) return `<div class="empty">Run SQL part 49 in Supabase, then reload.</div>`;
+  if(!(S.auto||[]).length) return `<div class="empty">Nothing here yet.</div>`;
+  return `<div class="autog">${S.auto.map(a=>{ const info=AUTO_INFO[a.key]||[a.key,""], on=!!a.enabled, k=esc(a.key);
+    return `<div class="autoc${on?" on":""}">
+      <div class="row-form" style="margin:0;justify-content:space-between;align-items:flex-start;flex-wrap:nowrap">
+        <span><b>${esc(info[0])}</b><br><span class="faint" style="font-size:12.5px">${esc(info[1])}</span></span>
+        <label class="autosw"><input type="checkbox" ${on?"checked":""} onchange="saveAuto('${k}',{enabled:this.checked})"> ${on?"On":"Off"}</label></div>
+      <div class="faint" style="font-size:12.5px">Sent ${num(a.sent||0)} · read ${num(a.opened||0)} · replied ${num(a.replied||0)}</div>
+      <input class="at" placeholder="Title (optional)" maxlength="80" value="${esc(autoVal(a,"title")||"")}" oninput="autoEdit('${k}','title',this.value)">
+      <textarea maxlength="2000" oninput="autoEdit('${k}','body',this.value)">${esc(autoVal(a,"body")||"")}</textarea>
+      <div class="row-form" style="margin:0"><span class="muted" style="font-size:12.5px">Sent</span>
+        <input type="number" min="1" max="720" value="${+autoVal(a,"after_hours")||24}" style="width:74px" oninput="autoEdit('${k}','after_hours',+this.value)">
+        <span class="muted" style="font-size:12.5px">hours after they joined, or later</span>
+        <button class="btn sm primary" style="margin-left:auto" onclick="saveAuto('${k}')">Save</button></div>
+      <div class="autoprev" id="autoPrev_${k}">${autoPrevHtml(a)}</div>
+      ${msgReplies(a)}</div>`; }).join("")}</div>`;
+}
+async function saveAuto(key, over){
+  const a=(S.auto||[]).find(x=>x.key===key); if(!a) return;
+  if(over) Object.assign(S.autoForm[key]=S.autoForm[key]||{}, over);
+  const n={enabled:!!autoVal(a,"enabled"), title:String(autoVal(a,"title")||"").trim(), body:String(autoVal(a,"body")||"").trim(),
+           after_hours:Math.max(1, Math.min(720, Math.round(+autoVal(a,"after_hours")||24)))};
+  if(!n.body){ alert("Write the message first."); return; }
+  if(n.enabled && !a.enabled && !confirm("Switch this on?\n\nFrom now on, every pilot it fits gets it once, "+n.after_hours+" hours or more after joining:\n\n"+(n.title?autoFill(n.title,key)+"\n":"")+autoFill(n.body,key))){
+    delete S.autoForm[key].enabled; draw(); return; }
+  if(DEMO){ Object.assign(a,n); delete S.autoForm[key]; draw(); return; }
+  try{ await rpc("admin_auto_set",{p_key:key, p_enabled:n.enabled, p_title:n.title, p_body:n.body, p_hours:n.after_hours});
+    delete S.autoForm[key]; S.auto=await tryRpc("admin_auto_list",{},[])||[]; draw(); }
+  catch(e){ alert(/admin_auto_set|PGRST202|does not exist/.test(e.message)?"Run SQL part 49 first.":"Couldn't save: "+e.message); }
 }
 
 /* ---------- crew hotels (part 46) ---------- */
@@ -1292,6 +1430,14 @@ function demoData(){
           {code:"GSD",kind:"ground",times:11,pilots:6,first_day:"2026-10-25",last_day:"2026-11-08",days:["2026-11-08","2026-10-25"],hours:["15:00–18:00"]},
           {code:"KJD",kind:"hotel",times:3,pilots:2,first_day:"2026-10-09",last_day:"2026-10-09",days:["2026-10-09"],hours:["09:00–18:00"],named_type:"ground",named_label:"Kaizen day"}];
   S.msgs=[{id:1,to_label:"Everyone at AJX",to_user:null,title:"Rest is here",body:"Try the new Rest tab and tell me what you think.",created_at:new Date(now-2*day).toISOString(),reads:7,replies:[{pilot:"Chris Lee",reply:"Love it — the nap suggestion was spot on.",at:new Date(now-day).toISOString()}]}];
+  S.gaps=[{id:"p8",pilot:"SMITH, J",airline:"AJX",staff:"50412",joined:new Date(now-40*day).toISOString(),last_seen:new Date(now-2*60*60000).toISOString(),missing:["first name"],messaged_at:null,read_at:null,reply:null},
+          {id:"p9",pilot:"Luca",airline:"UX",staff:null,joined:new Date(now-9*day).toISOString(),last_seen:new Date(now-3*day).toISOString(),missing:["full name","staff number"],messaged_at:null,read_at:null,reply:null},
+          {id:"p10",pilot:"Mia Lee",airline:"AJX",staff:null,joined:new Date(now-2*day).toISOString(),last_seen:new Date(now-5*60*60000).toISOString(),missing:["staff number"],messaged_at:null,read_at:null,reply:null}];
+  S.auto=[{key:"no_import",enabled:false,title:"Let's get your roster in",after_hours:24,sent:0,opened:0,replied:0,replies:[],
+            body:"Hi {first} — your roster isn't in RosterView yet. It takes about a minute: on the Month screen tap “Open my roster page”, sign in on {airline}'s own page, then tap “Import this roster” at the bottom. Stuck anywhere? Reply here and I'll help."},
+          {key:"no_reader",enabled:true,title:"One screenshot and we can add {airline}",after_hours:24,sent:4,opened:3,replied:1,
+            replies:[{pilot:"Omar Haddad",reply:"Sent it just now — the page is in UTC.",at:new Date(now-3*60*60000).toISOString()}],
+            body:"Hi {first} — RosterView can't read {airline} rosters yet, but one screenshot of your roster page is all I need to build it. On the Month screen tap “Send my roster”. Once it's ready, everyone at {airline} imports in one tap — I'll message you here."}];
   S.hotels=[{id:1,airline:"AJX",airport:"BKK",name:"Pilot-shared Hotel Bangkok",address:"Sukhumvit",status:"pending",pilot:"Chris Lee",created_at:new Date(now-50*min).toISOString(),current_name:null},
             {id:2,airline:"AJX",airport:"SIN",name:"Example Hotel Singapore",address:"Novena",status:"approved",pilot:"(owner)",created_at:new Date(now-3*day).toISOString()}];
   S.requests=[{id:"rq1",user_id:"p8",airline:"Oman Air",pilot:"Omar Haddad",email:"omar.haddad@example.test",status:"new",samples:2,crew_system:"AIMS / eCrew",
