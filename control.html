@@ -198,6 +198,10 @@ body.pilot-open::after{content:""; position:fixed; inset:0; background:rgba(5,8,
 .tp.on{border-color:var(--ink); box-shadow:0 0 0 1px var(--ink)}
 .sw{display:inline-block; width:12px; height:12px; border-radius:4px; vertical-align:-1px; box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
 .btn.sm{padding:4px 9px; font-size:12px; border-radius:8px; white-space:nowrap}
+.btn.danger{background:var(--bad); color:#fff; border-color:transparent} .btn.danger:hover{background:var(--bad-ink)}
+.btn:disabled{opacity:.45; cursor:default} .btn.danger:disabled:hover{background:var(--bad)}
+.dz{margin-top:22px; padding:12px 14px; border:1px solid color-mix(in srgb,var(--bad) 40%,transparent); border-radius:12px}
+.dz h2{margin-top:0}
 .overlay{position:fixed; inset:0; z-index:60; background:rgba(5,8,14,.55); display:flex; align-items:stretch; justify-content:center; padding:24px}
 .ov{background:var(--card); border-radius:16px; width:min(1360px,100%); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line)}
 .ov .hd{display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--line)}
@@ -375,7 +379,7 @@ async function tryRpc(fn, args, fallback){
 
 /* ---------- state ---------- */
 const S={tab:(()=>{ try{ const t=localStorage.getItem("cr_tab"); return ["today","pilots","rosters","messages","requests","usage"].indexOf(t)>=0?t:"today"; }catch(e){ return "today"; } })(),
-         msgs:[], msgTo:"all", msgForm:{}, auto:[], autoForm:{}, gaps:[], gapForm:{},
+         msgs:[], msgTo:"all", msgForm:{}, del:{}, departed:[], depState:"", auto:[], autoForm:{}, gaps:[], gapForm:{},
          seenAir:"AJX", seen:[], seenAll:false, nm:{}, hotels:[], htForm:{},
          pNew:false, sugg:[], sgEdit:{}, anyCode:{}, pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
          sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
@@ -393,6 +397,7 @@ async function load(){
     S.msgs=await tryRpc("admin_messages_list",{},[]) || [];
     S.auto=await tryRpc("admin_auto_list",{},[]) || [];
     S.gaps=await tryRpc("admin_profile_gaps",{},[]) || [];
+    S.departed=await loadDeparted();
     S.seen=await tryRpc("admin_codes_seen",{p_airline:S.seenAir||"AJX"},[]) || [];
     const [sum,daily,online,events,errors,screens,funnel,pilots,requests]=await Promise.all([
       tryRpc("admin_cr_summary",{},[]), tryRpc("admin_cr_daily",{p_days:60},[]), tryRpc("admin_cr_online",{p_minutes:15},[]),
@@ -442,6 +447,8 @@ function draw(){
       <section class="card c12" aria-labelledby="hPil"><h2 id="hPil">All pilots</h2><div class="cap">Click a column to sort, a pilot for everything about them, an import to see it beside the original. A green dot is in the app now.</div>${pilotsHtml()}</section>
       <section class="card c12" aria-labelledby="hGaps"><h2 id="hGaps">Missing a name or staff number</h2>
         <div class="cap">Pilots without a first name and surname in full, or without a staff number — how crew find each other. The app asks them itself, once a day, until it's done. Nothing goes out until you press Send — one message per pilot, once. A pilot drops off this list the moment they fill it in.</div>${gapsHtml()}</section>
+      <section class="card c12" aria-labelledby="hGone"><h2 id="hGone">Deleted accounts</h2>
+        <div class="cap">Every account deleted, newest first — by the pilot in the app, or by you from their page here.</div>${departedHtml()}</section>
       `:""}
       ${S.tab==="rosters"?`
       <section class="card c5" aria-labelledby="hImp"><h2 id="hImp">Imports</h2>
@@ -1226,6 +1233,61 @@ async function setPilotLogbook(id, on){
   catch(e){ alert(/admin_pilot_flag_set|PGRST202|does not exist/.test(e.message) ? "Run SQL part 42 first." : e.message); }
 }
 
+/* ---------- deleting an account (part 51) ----------
+   The same as "Delete my account" in the app: the login and everything the
+   server holds goes. Three locks: the word DELETE typed, a confirm, and the
+   server's own refusal of owner accounts — yours included. */
+function deleteHtml(P){
+  const i=P.info||{}, me=((sess()||{}).user||{}).id;
+  if(me && me===P.id) return `<div class="dz"><h2>Delete account</h2><div class="muted" style="font-size:12.5px">This is your own account. If you ever mean to delete it, do it from the app.</div></div>`;
+  const f=S.del[P.id]||{}, ready=String(f.ok||"").trim().toUpperCase()==="DELETE";
+  const whose=i.pilot && i.pilot!=="(no name)" ? esc(i.pilot.split(" ")[0])+"'s" : "their";
+  return `<div class="dz"><h2>Delete account</h2>
+    <div class="muted" style="font-size:12.5px;line-height:1.5">Removes ${whose} login and everything the server holds for them: ${+i.months?num(i.months)+" roster month"+(+i.months===1?"":"s")+" and":""} the pages their airline drew, their logbook backup, messages, Rest scores, connections and usage records. It can't be undone. Their phone is signed out within the hour. They can sign up again with the same email.</div>
+    <div class="row-form" style="margin-top:10px">
+      <input id="delWhy" placeholder="Reason (only you see it)" maxlength="300" value="${esc(f.why||"")}" oninput="delForm('${esc(P.id)}','why',this.value)" style="flex:1;min-width:160px">
+      <input id="delOk" placeholder="Type DELETE" aria-label="Type DELETE to confirm" autocomplete="off" spellcheck="false" value="${esc(f.ok||"")}" oninput="delForm('${esc(P.id)}','ok',this.value)" style="width:120px">
+      <button id="delBtn" class="btn sm danger" onclick="deletePilot('${esc(P.id)}')"${ready?"":" disabled"}>Delete account</button></div></div>`;
+}
+function delForm(id, k, v){
+  (S.del[id] ||= {})[k]=v;
+  if(k==="ok"){ const b=$("#delBtn"); if(b) b.disabled=String(v).trim().toUpperCase()!=="DELETE"; }
+}
+async function deletePilot(id){
+  const P=S.pilot, i=(P&&P.id===id&&P.info)||{}, f=S.del[id]||{};
+  if(String(f.ok||"").trim().toUpperCase()!=="DELETE"){ alert("Type DELETE in the box first."); return; }
+  if(!confirm(`Delete ${i.pilot||"this pilot"}'s account?\n\nTheir login, rosters, logbook backup, messages and everything else on the server go now, for good.`)) return;
+  const done=r=>{ delete S.del[id]; if(S.pilot&&S.pilot.id===id){ S.pilot=null; drawSide(); }
+    alert(`Deleted: ${(r&&r.pilot)||i.pilot||"the pilot"}${r&&r.email?" ("+r.email+")":""}.${r&&+r.rosters?" "+num(r.rosters)+" roster month"+(+r.rosters===1?"":"s")+" removed.":""}`); };
+  if(DEMO){ (S._gone ||= new Set()).add(id); S.pilots=S.pilots.filter(p=>p.id!==id);
+    S.departed=[{id, pilot:i.pilot, airline:i.airline, staff:i.staff, email:i.email, joined:i.joined, last_seen:i.last_seen, months:+i.months||0,
+      left_at:new Date().toISOString(), removed_by:"owner", reason:(f.why||"").trim()||null}].concat(S.departed||[]);
+    draw(); done({pilot:i.pilot, email:i.email, rosters:+i.months||0}); return; }
+  const b=$("#delBtn"); if(b){ b.disabled=true; b.textContent="Deleting…"; }
+  try{
+    const r=await rpc("admin_delete_pilot",{p_user:id, p_confirm:String(f.ok||""), p_reason:(f.why||"").trim()||null});
+    await load(); done(r);
+  }catch(e){
+    if(b){ b.disabled=false; b.textContent="Delete account"; }
+    alert(/admin_delete_pilot|PGRST202|42883|does not exist|Could not find/.test(String(e.message)+e.code) ? "Run SQL part 51 in Supabase first." : e.message);
+  }
+}
+async function loadDeparted(){
+  try{ const r=await rpc("admin_cr_departed",{p_limit:50}); S.depState=""; return r||[]; }
+  catch(e){ S.depState=/does not exist|PGRST202|42883|Could not find/i.test(String(e.message)+e.code) ? "missing" : e.message; return []; }
+}
+function departedHtml(){
+  if(S.depState==="missing") return `<div class="empty">Run SQL part 51 in Supabase, then reload.</div>`;
+  if(S.depState) return `<div class="empty">Couldn't load: ${esc(S.depState)}</div>`;
+  const d=S.departed||[];
+  if(!d.length) return `<div class="empty">No account has been deleted.</div>`;
+  return `<div class="scroll" style="max-height:340px"><table class="compact"><thead><tr><th>Pilot</th><th>Deleted by</th><th class="num">When</th><th class="num">Joined</th><th class="num">Months</th></tr></thead><tbody>
+    ${d.map(x=>`<tr><td><span class="who">${esc(x.pilot||"(no name)")}</span><br><span class="faint">${esc(x.airline||"?")}${x.staff?" · #"+esc(x.staff):""}${x.email?" · "+esc(x.email):""}</span></td>
+      <td>${x.removed_by==="owner"?`<span class="tag warn">you</span>${x.reason?`<br><span class="faint">${esc(x.reason)}</span>`:""}`:`<span class="tag">the pilot</span>`}</td>
+      <td class="num muted">${ago(x.left_at)}</td><td class="num muted">${ago(x.joined)}</td><td class="num">${num(+x.months||0)}</td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+
 /* ---------- their roster, month by month (what the app's own owner screen shows) ----------
    The month as the app filed it, drawn as a small calendar in the app's colours,
    with the counts, any code it could not name, and the page their airline drew
@@ -1384,6 +1446,7 @@ function drawSide(){
           <button class="btn sm${(P.flags||{}).logbook?"":" primary"}" onclick="setPilotLogbook('${esc(P.id)}', ${!(P.flags||{}).logbook})">${(P.flags||{}).logbook?"Turn off":"Turn on"}</button></div>
         <h2>Their timeline</h2>
         ${(P.events||[]).length?`<div class="feed scroll" style="max-height:420px">${P.events.map(evHtml).join("")}</div>`:`<div class="empty">Nothing recorded yet. Records start with the version that sends them.</div>`}
+        ${deleteHtml(P)}
       </div></div>`);
   drawOverlay();
 }
@@ -1565,6 +1628,9 @@ function demoData(){
     return {airline:"UX", parser:"PORTRI", month:ym, parsed:it, image:null,
       snapshot:"<html><body style='font:13px Arial;padding:14px'><h3>PROGRAMACION OCTUBRE 2026</h3><table border='1' cellpadding='4' style='border-collapse:collapse'><tr><th>Fecha</th><th>Servicio</th><th>Hora</th></tr>"
         +[...Array(31)].map((_,i)=>"<tr><td>"+(i+1)+"/10</td><td>"+((i+1)%7===3?"RDP":((i+1)%4===0?"UX10"+(i+1)+" MAD-LHR":(i===11||i===12?"CURSO SEG":"LIB")))+"</td><td>"+((i+1)%4===0?"07:10-08:40":"")+"</td></tr>").join("")+"</table></body></html>"}; };
+  if(S._gone) S.pilots=S.pilots.filter(p=>!S._gone.has(p.id));
+  if(!S._depDemo){ S._depDemo=1; S.departed=[{id:"g1", pilot:"Ben Carter", airline:"AJX", staff:"20411", email:"ben.carter@example.test", joined:new Date(now-40*day).toISOString(),
+      months:2, left_at:new Date(now-6*day).toISOString(), removed_by:"pilot", reason:null}]; }
   DEMO_PILOT=id=>{ const p=S.pilots.find(x=>x.id===id)||{}; return Object.assign({}, p, {email:p.pilot?p.pilot.toLowerCase().replace(/ /g,".")+"@example.test":"",
     last_import:p.months?new Date(now-2*day).toISOString():null, log_minutes:p.log_entries?p.log_entries*318:0,
     online_view:(S.online.find(o=>o.user_id===id)||{}).view, online_seen:(S.online.find(o=>o.user_id===id)||{}).seen_at}); };
