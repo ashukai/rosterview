@@ -290,6 +290,7 @@ const KINDS={
   roster_import:   {t:"Imported a roster",             k:"good",i:"✓"},
   import_empty:    {t:"Import found no duties",        k:"bad",i:"!"},
   import_failed:   {t:"Import failed",                 k:"bad",i:"!"},
+  import_auto:     {t:"Roster read automatically",     k:"acc",i:"\u2731"},
   bring_in:        {t:"Brought roster flights into the logbook", k:"acc", i:"↓"},
   logbook_import:  {t:"Imported an old logbook",       k:"acc",i:"↓"},
   logbook_import_failed:{t:"Old logbook import failed",k:"bad",i:"!"},
@@ -643,6 +644,8 @@ function evDetail(kind,d){
   else if(kind==="portal_open") b.push((d.airline||"no airline")+(d.ready?"":" · not readable yet"));
   else if(kind==="duty_added") b.push(String(d.type||""));
   else if(kind==="import_empty") b.push([d.source, d.had, d.reason].filter(Boolean).join(" · "));
+  // the automatic reader, at an airline with no reader of its own: did the pilot take it?
+  else if(kind==="import_auto") b.push(d.ok ? "brought in · "+num(d.n)+" duties, "+num(d.flights||0)+" flights" : "“Not right” · went to the column setup · "+num(d.n)+" read");
   else Object.keys(d).slice(0,3).forEach(k=>b.push(k+": "+String(d[k]).slice(0,40)));
   return esc(b.filter(Boolean).join(" · "));
 }
