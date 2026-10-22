@@ -381,7 +381,7 @@ async function tryRpc(fn, args, fallback){
 const S={tab:(()=>{ try{ const t=localStorage.getItem("cr_tab"); return ["today","pilots","rosters","messages","requests","usage"].indexOf(t)>=0?t:"today"; }catch(e){ return "today"; } })(),
          msgs:[], msgTo:"all", msgForm:{}, del:{}, departed:[], depState:"", auto:[], autoForm:{}, gaps:[], gapForm:{},
          seenAir:"AJX", seen:[], seenAll:false, nm:{}, hotels:[], htForm:{},
-         pNew:false, sugg:[], sgEdit:{}, anyCode:{}, pAir:"", pSort:"seen", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
+         pNew:false, sugg:[], sgEdit:{}, anyCode:{}, pAir:"", pSort:"joined", pDir:-1, lbhelp:[], named:[], imports:[], airlines:[], codeForm:null, imp:null, req:null, reqFiles:{},
          sum:null, daily:[], online:[], events:[], errors:[], screens:[], funnel:[], pilots:[], requests:[],
          missing:new Set(), view:"", kind:"", q:"", chart:"active", loadedAt:0, err:"", pilot:null, timer:null};
 
@@ -658,7 +658,7 @@ function pilotRows(){
   const q=S.q.toLowerCase(), air=S.pAir||"";
   const rows=(S.pilots||[]).filter(p=>(!air || p.airline===air) && (!S.pNew || isNewPilot(p)) && (!q || [p.pilot,p.staff,p.airline,p.rank].join(" ").toLowerCase().indexOf(q)>=0))
     .map(p=>Object.assign({}, p, {_imp:lastImportOf(p.id), _on:(S.online||[]).some(o=>o.user_id===p.id && live(o))}));
-  const k=S.pSort||"seen", dir=S.pDir===1?1:-1;
+  const k=S.pSort||"joined", dir=S.pDir===1?1:-1;   // newest joiner first; Activity says who is using it
   const val={name:p=>String(p.pilot||"").toLowerCase(), seen:p=>Date.parse(p.last_seen)||0, joined:p=>Date.parse(p.joined)||0, ver:p=>tagNum(p.app_tag),
     months:p=>+p.months||0, imp:p=>p._imp?Date.parse(p._imp.at)||0:0, log:p=>+p.log_entries||0, err:p=>+p.errors_7d||0}[k]||(p=>0);
   return rows.sort((a,b)=>{ const x=val(a), y=val(b); return (x<y?-1:x>y?1:0)*(k==="name"?-dir:dir); });
