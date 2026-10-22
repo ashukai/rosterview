@@ -707,7 +707,8 @@ function drawPilotsOnly(){
 /* The type IS the colour: each one is drawn in the same colour on every pilot's
    calendar, so picking the type picks the colour. (The app's own colours.) */
 const CODE_TYPES=[["ground","Ground duty","#ef8b3b"],["off","Day off","#39a85a"],["standby","Standby","#f2b705"],["sim","Simulator","#8a5cd1"],
-                  ["flight","Flight","#e0475a"],["transport","Transport","#a9814e"],["hotel","Hotel","#5b7a90"],["rest","Rest","#8794a0"],["absent","Absent / leave","#15181c"]];
+                  ["flight","Flight","#e0475a"],["transport","Transport","#a9814e"],["hotel","Hotel","#5b7a90"],["rest","Rest","#8794a0"],["absent","Absent / leave","#15181c"],
+                  ["note","Note on a flight","#b9c2cc"]];      // a remark folded into that day's flight (app R173+, SQL part 52)
 const TYPE_COLOR=Object.fromEntries(CODE_TYPES.map(t=>[t[0],t[2]]));
 function sw(type){ return `<i class="sw" style="background:${TYPE_COLOR[type]||"var(--faint)"}" aria-hidden="true"></i>`; }
 function codesHtml(){
