@@ -151,6 +151,8 @@ button.kpi.tapk:hover{outline:2px solid var(--line)}
 .ni b{display:block; font-size:13.5px} .ni span{font-size:12.5px; color:var(--sub)}
 .ni .dot{margin-top:6px}
 .bug b{font-size:13px; font-family:ui-monospace,Menlo,monospace; font-weight:600; word-break:break-word}
+.bugdet{background:var(--bg2,rgba(127,127,127,.07)); border-radius:12px; padding:10px 14px; font-size:13.5px; line-height:1.45}
+.bugdet p{margin:6px 0}
 
 /* the pilot drawer */
 /* the six pages */
@@ -511,7 +513,7 @@ function kpiHtml(){
     <button class="kpi tapk" onclick="S.pNew=true;S.pAir='';S.pSort='joined';S.pDir=-1;draw();setTimeout(()=>{const h=document.getElementById('hPil');h&&h.scrollIntoView({behavior:'smooth',block:'start'});},30)"
       title="Show who"><b>${s.signups_7d==null?"–":num(s.signups_7d)}</b><span>new in 7 days · show who ›</span></button>
     ${k(s.never_imported,"never imported a roster", (+s.never_imported? "":""), (+s.never_imported?"warn":""))}
-    ${k(s.errors_24h,"errors in 24 h · "+num(s.error_pilots_24h)+" pilots", +s.errors_24h?"bad":"", +s.errors_24h?"bad":"")}
+    <button class="kpi tapk ${+s.errors_24h?"bad":""}" onclick="openBugs()" title="See what went wrong"><b>${s.errors_24h==null?"–":num(s.errors_24h)}</b><span>${+s.errors_24h?`<i class="dot bad"></i>`:""}errors in 24 h · ${num(s.error_pilots_24h)} pilot${+s.error_pilots_24h===1?"":"s"} · see ›</span></button>
     ${k(s.logbooks,"logbooks · "+num(s.logbook_entries)+" entries")}
   </div>`;
 }
@@ -582,15 +584,33 @@ function needList(){
   out.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
   return out;
 }
+/* What an error means, in words, for the ones that have been looked at. Matched
+   on a piece of the message. A bug not in here says so and says what to do. */
+const BUG_NOTES=[
+  {m:"'t.legs'", what:"On the Swap tab: the pilot had searched for swaps for one of their trips, and that trip then disappeared from their roster (re-imported, or moved into the past). The app forgot the trip but kept the search results, and drawing them crashed. Nothing was lost or changed.", fix:"R176"},
+];
+function bugNote(msg){ return BUG_NOTES.find(n=>String(msg||"").indexOf(n.m)>=0)||null; }
+function openBugs(){ S.bugOpen=null; setTab("usage"); setTimeout(()=>{ const h=document.getElementById("hBugs"); h&&h.scrollIntoView({behavior:"smooth",block:"start"}); },40); }
 function bugsHtml(){
   const rows=S.errors||[];
   if(!rows.length) return `<div class="empty">No errors reported in 14 days.</div>`;
-  return `<div class="scroll" style="max-height:330px"><table><thead><tr><th>What went wrong</th><th class="num">Times</th><th class="num">Pilots</th><th>Versions</th><th class="num">Last</th></tr></thead><tbody>
-    ${rows.map(b=>`<tr><td class="bug"><b>${esc(b.msg)}</b><br><span class="faint" style="font-size:11.5px">on ${esc(String(b.views||"").split(", ").map(v=>SCREEN_NAME[v]||v).join(", "))}${
-        b.sample&&b.sample.src?" · "+esc(b.sample.src):""}</span></td>
+  return `<div class="scroll" style="max-height:520px"><table><thead><tr><th>What went wrong</th><th class="num">Times</th><th class="num">Pilots</th><th>Versions</th><th class="num">Last</th></tr></thead><tbody>
+    ${rows.map((b,i)=>{
+      const open=S.bugOpen===i, note=bugNote(b.msg);
+      // who hit it: from the recent events this page already holds
+      const who=[...new Map((S.events||[]).filter(e=>e.kind==="error" && e.data && e.data.msg===b.msg).map(e=>[e.user_id,e])).values()];
+      return `<tr class="bugrow" onclick="S.bugOpen=(S.bugOpen===${i}?null:${i});draw()" style="cursor:pointer" aria-expanded="${open}">
+      <td class="bug"><b>${esc(b.msg)}</b><br><span class="faint" style="font-size:11.5px">on ${esc(String(b.views||"").split(", ").map(v=>SCREEN_NAME[v]||v).join(", "))} · ${open?"hide":"tap for details"} ›</span></td>
       <td class="num">${num(b.times)}</td><td class="num">${num(b.pilots)}</td>
       <td>${String(b.versions||"").split(", ").map(v=>`<span class="tag">${esc(vlabel(v))}</span>`).join(" ")}</td>
-      <td class="num muted">${ago(b.last_at)}</td></tr>`).join("")}</tbody></table></div>`;
+      <td class="num muted">${ago(b.last_at)}</td></tr>
+      ${open?`<tr><td colspan="5"><div class="bugdet">
+        <p><b>What it means.</b> ${note?esc(note.what):"Not looked at yet. Send this row to Claude Code (the message and the line below) and it can find it."}</p>
+        ${note&&note.fix?`<p><b>Fixed in ${esc(note.fix)}.</b> Pilots get it with that update.</p>`:""}
+        <p><b>When.</b> First ${esc(new Date(b.first_at).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))}, last ${esc(new Date(b.last_at).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))} · ${num(b.times)} time${+b.times===1?"":"s"}</p>
+        ${who.length?`<p><b>Who.</b> ${who.map(e=>`<a href="#" onclick="event.preventDefault();event.stopPropagation();openPilot('${esc(e.user_id)}')">${esc(e.pilot||"?")}</a>`).join(", ")}</p>`:`<p class="faint">Who: not in the last 300 events.</p>`}
+        <p class="faint" style="font-size:11.5px">Where in the code: ${esc((b.sample&&b.sample.src)||"not given")}</p>
+      </div></td></tr>`:""}`; }).join("")}</tbody></table></div>`;
 }
 function funnelHtml(){
   const rows=S.funnel||[]; if(!rows.length) return `<div class="empty">No data yet.</div>`;
