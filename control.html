@@ -313,7 +313,11 @@ const KINDS={
   log_restore:     {t:"Put a logbook backup back",     k:"acc",i:"↺"},
   whats_new:       {t:"Saw what's new",                k:"",   i:"★"},
   error:           {t:"Error",                         k:"bad",i:"!"},
-  quiet_error:     {t:"Something failed quietly",      k:"bad",i:"!"}
+  quiet_error:     {t:"Something failed quietly",      k:"bad",i:"!"},
+  store_problem:   {t:"Phone storage problem",         k:"bad",i:"!"},
+  log_missing:     {t:"Logbook didn't load on the phone", k:"bad",i:"!"},
+  log_missing_refused:{t:"A save over a missing logbook was stopped", k:"warn",i:"✋"},
+  auto_put_back:   {t:"Put back from the account by itself", k:"good",i:"↺"}
 };
 function kindOf(k){ return KINDS[k] || {t:k.replace(/_/g," "), k:"", i:"·"}; }
 
@@ -653,6 +657,9 @@ function evDetail(kind,d){
   else if(kind==="logbook_import_failed") b.push((d.format||"file")+" · "+(d.reason||""));
   else if(kind==="bring_in") b.push(num(d.n)+" flights");
   else if(kind==="error"||kind==="quiet_error") b.push(String(d.msg||d.what||"").slice(0,140));
+  else if(kind==="store_problem") b.push(String(d.k||"")+": "+String(d.what||"").slice(0,140));
+  else if(kind==="log_missing") b.push("it held "+num(d.n)+" entries"+(d.signedIn?"":" · not signed in"));
+  else if(kind==="auto_put_back") b.push([d.roster?num(d.roster)+" duties":"", d.log?num(d.log)+" logbook entries":""].filter(Boolean).join(" · ")+(d.why?" · after "+d.why:""));
   else if(kind==="app_open") b.push((d.roster!=null?num(d.roster)+" duties":"")+(d.log!=null?" · "+num(d.log)+" logbook entries":"")+(d.build?" · app "+d.build:""));
   else if(kind==="airline_request") b.push(String(d.airline||""));
   else if(kind==="flights_sent") b.push(num(d.n)+" new flight"+(+d.n===1?"":"s")+" from their roster"+(+d.had?" ("+num(d.had)+" the list already had)":""));
