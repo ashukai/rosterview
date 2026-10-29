@@ -285,11 +285,12 @@ const SCREEN_NAME=Object.fromEntries(SCREENS.map(s=>[s.view,s.name]));
 /* What each record means, in words. */
 /* What a pilot at an airline we haven't built said when the app asked how their
    roster arrives (app R178+), and what to ask them for. */
-const SRC_SAID={web:"a web page", app:"a crew app", file:"a PDF or file", email:"email", paper:"paper"};
+const SRC_SAID={web:"a web page", app:"a crew app", file:"a PDF or file", email:"email", paper:"paper", other:"something else"};
 const SRC_ASK={web:"ask for the web address and a screenshot of one month",
                app:"ask whether the app can export a calendar (.ics); if not, screenshots of one month",
                file:"ask for the file itself, one month", email:"ask them to forward one month's email",
-               paper:"ask for a photo of one month, and what the codes mean"};
+               paper:"ask for a photo of one month, and what the codes mean",
+               other:"read what they wrote in Requests (their words and the link); if nothing came, ask how it reaches them"};
 function srcSaid(ev){
   const e=(ev||[]).filter(x=>x.kind==="roster_source").sort((a,b)=>String(b.at).localeCompare(String(a.at)))[0];
   const k=e && (e.data||{}).src; return SRC_SAID[k] ? k : "";
