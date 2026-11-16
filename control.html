@@ -325,6 +325,10 @@ const KINDS={
   codes_named:     {t:"Got your code names",           k:"",   i:"✓"},
   log_lock:        {t:"Locked or unlocked a flight",   k:"",   i:"🔒"},
   log_restore:     {t:"Put a logbook backup back",     k:"acc",i:"↺"},
+  logbook_self:    {t:"Logbook switch in Profile",     k:"acc",i:"⏻"},
+  log_totals:      {t:"Opened logbook totals",         k:"",   i:"Σ"},
+  log_map:         {t:"Opened the route map",          k:"",   i:"◍"},
+  log_map_share:   {t:"Shared their route map",        k:"good",i:"↗"},
   whats_new:       {t:"Saw what's new",                k:"",   i:"★"},
   error:           {t:"Error",                         k:"bad",i:"!"},
   quiet_error:     {t:"Something failed quietly",      k:"bad",i:"!"},
@@ -672,6 +676,10 @@ function evDetail(kind,d){
   else if(kind==="logbook_import") b.push((d.format||"file")+" · "+num(d.rows)+" rows → "+num(d.added)+" added"+(d.skipped?", "+num(d.skipped)+" already there":"")+(d.kept?", "+num(d.kept)+" finished left alone":""));
   else if(kind==="logbook_import_failed") b.push((d.format||"file")+" · "+(d.reason||""));
   else if(kind==="bring_in") b.push(num(d.n)+" flights");
+  else if(kind==="logbook_self") b.push(d.on?"turned it ON":"turned it off");
+  else if(kind==="log_totals") b.push(d.sim?"simulator":"aeroplane");
+  else if(kind==="log_map") b.push(num(d.routes)+" routes · "+num(d.aps)+" airports");
+  else if(kind==="log_map_share") b.push(d.kind==="video" ? "video"+(d.how==="frames"?"":" (recorded live)")+(d.kb?" · "+num(d.kb)+" KB":"") : "picture");
   else if(kind==="error"||kind==="quiet_error") b.push(String(d.msg||d.what||"").slice(0,140));
   else if(kind==="store_problem") b.push(String(d.k||"")+": "+String(d.what||"").slice(0,140));
   else if(kind==="log_missing") b.push("it held "+num(d.n)+" entries"+(d.signedIn?"":" · not signed in"));
