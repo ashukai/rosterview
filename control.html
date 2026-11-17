@@ -11,7 +11,7 @@
    from an admin_cr_* function that checks is_admin() on the server. */
 :root{
   color-scheme:light;
-  --bg:#f3f4f6; --card:#ffffff; --ink:#0b0d12; --sub:#5b6270; --faint:#9aa1ab; --line:rgba(12,16,24,.08); --fill:#eef0f3;
+  --bg:#f3f4f6; --card:#ffffff; --ink:#0b0d12; --sub:#5b6270; --faint:#7c8390; --line:rgba(12,16,24,.08); --fill:#eef0f3;
   --accent:#2a78d6; --accent-ink:#1f5fae; --accent-soft:rgba(42,120,214,.12);
   --good:#0ca30c; --good-ink:#0a7a0a; --warn:#fab219; --warn-ink:#8a5a00; --bad:#d03b3b; --bad-ink:#b02c2c;
   --series:#2a78d6; --series-bad:#d03b3b; --grid:rgba(12,16,24,.07);
@@ -35,7 +35,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0}
-body{background:var(--bg); color:var(--ink); font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+body{background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased; letter-spacing:-.005em}
 button,input,select{font:inherit; color:inherit}
 .wrap{max-width:1440px; margin:0 auto; padding:18px 24px 60px}
@@ -56,8 +56,8 @@ header .sp{flex:1}
 /* the layout */
 .grid{display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:14px}
 .card{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px 18px; min-width:0}
-.card h2{margin:0 0 2px; font-size:14px; font-weight:750; letter-spacing:-.1px}
-.card .cap{font-size:12px; color:var(--sub); margin-bottom:12px}
+.card h2{margin:0 0 3px; font-size:16px; font-weight:780; letter-spacing:-.2px}
+.card .cap{font-size:13px; line-height:1.45; color:var(--sub); margin-bottom:14px; max-width:110ch}
 .grid{grid-auto-flow:row dense}
 .c3{grid-column:span 3} .c4{grid-column:span 4} .c5{grid-column:span 5} .c6{grid-column:span 6} .c7{grid-column:span 7} .c8{grid-column:span 8} .c12{grid-column:span 12}
 @media (max-width:1100px){ .c3,.c4,.c5{grid-column:span 6} .c7,.c8{grid-column:span 12} }
@@ -67,7 +67,7 @@ header .sp{flex:1}
 .kpis{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
 .kpi{padding:12px 14px; border-radius:12px; background:var(--fill); min-width:0}
 .kpi b{display:block; font-size:28px; font-weight:800; letter-spacing:-.8px; line-height:1.1; font-variant-numeric:tabular-nums}
-.kpi span{display:flex; align-items:center; gap:6px; margin-top:3px; font-size:12px; font-weight:650; color:var(--sub)}
+.kpi span{display:flex; align-items:center; gap:6px; margin-top:4px; font-size:13px; font-weight:650; color:var(--sub)}
 .kpi.bad b{color:var(--bad-ink)}
 @media (max-width:720px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
 
@@ -241,6 +241,15 @@ body.pilot-open::after{content:""; position:fixed; inset:0; background:rgba(5,8,
   .autoprev{padding:10px 12px; border-radius:10px; background:var(--fill); font-size:13.5px; line-height:1.45}
   .autoprev .faint{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px}
   .msgr{margin-top:8px; padding:8px 10px; border-radius:10px; background:color-mix(in srgb, var(--accent, #4aa3d6) 10%, transparent); display:flex; flex-direction:column; gap:8px}
+.unkstrip{margin:0 0 14px; padding:10px 12px; border-radius:12px; background:color-mix(in srgb, #e5484d 8%, var(--card, #fff)); border:1px solid color-mix(in srgb, #e5484d 25%, transparent)}
+.unkstrip>b{display:block; font-size:12.5px; margin-bottom:6px}
+.unkrow{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:4px}
+.msgc.grp{margin:4px 0 14px; padding:12px 14px; border-radius:12px; background:var(--fill)}
+.ni{position:relative; padding-right:34px}
+.nix{position:absolute; right:2px; top:6px; width:30px; height:30px; border:none; border-radius:8px; background:transparent; color:var(--faint); cursor:pointer; font-size:13px}
+.nix:hover{background:var(--fill); color:var(--ink)}
+.needft{display:flex; align-items:center; gap:12px; margin-top:10px; font-size:13px}
+.needft a{color:var(--sub)}
 </style>
 </head>
 <body>
@@ -536,7 +545,7 @@ function kpiHtml(){
       title="Show who"><b>${s.signups_7d==null?"–":num(s.signups_7d)}</b><span>new in 7 days · show who ›</span></button>
     ${k(s.never_imported,"never imported a roster", (+s.never_imported? "":""), (+s.never_imported?"warn":""))}
     <button class="kpi tapk ${+s.errors_24h?"bad":""}" onclick="openBugs()" title="See what went wrong"><b>${s.errors_24h==null?"–":num(s.errors_24h)}</b><span>${+s.errors_24h?`<i class="dot bad"></i>`:""}errors in 24 h · ${num(s.error_pilots_24h)} pilot${+s.error_pilots_24h===1?"":"s"} · see ›</span></button>
-    ${k(s.logbooks,"logbooks · "+num(s.logbook_entries)+" entries")}
+    <button class="kpi tapk" onclick="showLogbookPilots()" title="Show who"><b>${s.logbooks==null?"–":num(s.logbooks)}</b><span>logbooks · ${num(s.logbook_entries)} entries · show who ›</span></button>
   </div>`;
 }
 function mapHtml(){
@@ -566,11 +575,24 @@ function dur(a,b){ const m=Math.max(0,Math.round((new Date(b)-new Date(a))/60000
 
 /* What needs a person: a pilot stuck, a file that would not import, an
    airline asked for, a bug many pilots hit. */
+/* CLEARING "NEEDS YOU" (Alen, 17 Nov 2026). Each line can be cleared with its
+   cross, or all at once. Kept on this computer only, by what the line is about
+   and when: the same thing happening again (a new failed import, a new bug)
+   comes back as a new line. */
+const NEED_DONE_KEY="cr_need_done";
+function needDone(){ try{ return new Set(JSON.parse(localStorage.getItem(NEED_DONE_KEY)||"[]")); }catch(e){ return new Set(); } }
+function needKey(n){ return String(n.uid||"")+"|"+String(n.at||"")+"|"+String(n.t||"").replace(/<[^>]+>/g,"").slice(0,60); }
+function needClear(keys){ const d=needDone(); keys.forEach(k=>d.add(k)); try{ localStorage.setItem(NEED_DONE_KEY, JSON.stringify([...d].slice(-600))); }catch(e){} draw(); }
+function needUnclear(){ try{ localStorage.removeItem(NEED_DONE_KEY); }catch(e){} draw(); }
 function needHtml(){
-  const out=needList();
-  if(!out.length) return `<div class="empty">Nothing waiting on you.</div>`;
-  return `<div class="need scroll" style="max-height:330px">${out.slice(0,14).map(n=>`<div class="ni"${n.uid?` style="cursor:pointer" onclick="openPilot('${esc(n.uid)}')"`:""}>
-    <i class="dot ${n.dot}"></i><div><b>${n.t}</b><span>${n.s} · ${ago(n.at)}</span></div></div>`).join("")}</div>`;
+  const all=needList(), done=needDone(), out=all.filter(n=>!done.has(needKey(n))), cleared=all.length-out.length;
+  const keys=out.slice(0,14).map(needKey);
+  const foot=`<div class="needft">${out.length?`<button class="btn sm" onclick='needClear(${esc(JSON.stringify(keys))})'>Clear all${out.length>14?" shown":""}</button>`:""}
+    ${cleared?`<a href="#" onclick="event.preventDefault();needUnclear()">${num(cleared)} cleared · show them again</a>`:""}</div>`;
+  if(!out.length) return `<div class="empty">Nothing waiting on you.</div>${cleared?foot:""}`;
+  return `<div class="need scroll" style="max-height:360px">${out.slice(0,14).map((n,i)=>`<div class="ni"${n.uid?` style="cursor:pointer" onclick="openPilot('${esc(n.uid)}')"`:""}>
+    <i class="dot ${n.dot}"></i><div><b>${n.t}</b><span>${n.s} · ${ago(n.at)}</span></div>
+    <button class="nix" title="Clear this" aria-label="Clear this" onclick='event.stopPropagation();needClear([${esc(JSON.stringify(keys[i]))}])'>✕</button></div>`).join("")}</div>${foot}`;
 }
 function needList(){
   const out=[];
@@ -710,9 +732,45 @@ const RK_SHORT=r=>{ const x=String(r||"").toLowerCase(); return /capt|cpt|comman
 const tagNum=t=>+String(t||"").replace(/\D/g,"")||0;
 function lastImportOf(id){ return (S.imports||[]).find(i=>i.user_id===id) || null; }   // newest first already
 const isNewPilot=p=>Date.now()-(Date.parse(p.joined)||0) < 7*86400000;
+/* LOGBOOK PILOTS (Alen, 17 Nov 2026: "let me press on logbook (3) so i can see who
+   is using logbook. then allow me to send a message to all"). The tile on Today
+   opens All pilots filtered to them; a message box above the list writes to
+   every one of them, one message each, the same as writing to one pilot. */
+function hasLogbook(p){ return +p.log_entries>0; }
+function showLogbookPilots(){ S.pLog=true; S.pNew=false; S.pAir=""; S.q=""; S.pSort="log"; S.pDir=-1; setTab("pilots");
+  setTimeout(()=>{ const h=document.getElementById("hPil"); h&&h.scrollIntoView({behavior:"smooth",block:"start"}); },40); }
+function logGroupMsgHtml(){
+  if(S.missing.has("admin_messages_list")) return "";
+  const ps=(S.pilots||[]).filter(hasLogbook);
+  if(!ps.length) return "";
+  const f=S.msgForm.log||{};
+  return `<div class="msgc grp"><b>Message the ${num(ps.length)} logbook pilot${ps.length===1?"":"s"}</b>
+    <span class="faint" style="font-size:12.5px"> · ${esc(ps.map(p=>p.pilot).join(", "))}</span>
+    <input id="msgT_log" placeholder="Title (optional)" maxlength="80" value="${esc(f.title||"")}" oninput="(S.msgForm.log=S.msgForm.log||{}).title=this.value" style="width:100%;margin:8px 0 6px">
+    <textarea id="msgB_log" placeholder="Hey guys, let me know if you need anything for importing your logbook…" maxlength="2000" oninput="(S.msgForm.log=S.msgForm.log||{}).body=this.value" style="width:100%;min-height:80px">${esc(f.body||"")}</textarea>
+    <div class="row-form" style="margin:6px 0 4px"><button class="btn sm primary" onclick="sendLogGroup()">Send to all ${num(ps.length)}</button>
+      <span class="faint" style="font-size:12px">Each gets it in their app the next time they open it, and can reply. Replies show under Messages.</span></div></div>`;
+}
+async function sendLogGroup(){
+  const ps=(S.pilots||[]).filter(hasLogbook);
+  const t=((document.getElementById("msgT_log")||{}).value||"").trim(), b=((document.getElementById("msgB_log")||{}).value||"").trim();
+  if(!b){ alert("Write the message first."); return; }
+  if(!ps.length) return;
+  if(!confirm("Send to "+ps.length+" logbook pilot"+(ps.length===1?"":"s")+" ("+ps.map(p=>p.pilot).join(", ")+")?\n\n"+(t?t+"\n":"")+b)) return;
+  let sent=0; const failed=[];
+  for(const p of ps){
+    if(DEMO){ S.msgs.unshift({id:Date.now()+sent, to_label:p.pilot, to_user:p.id, title:t, body:b, created_at:new Date().toISOString(), reads:0, replies:[]}); sent++; continue; }
+    try{ await rpc("admin_message_send",{p_to:p.id, p_airline:null, p_all:false, p_title:t, p_body:b}); sent++; }
+    catch(e){ failed.push(p.pilot+": "+e.message); }
+  }
+  S.msgForm.log={};
+  if(!DEMO) S.msgs=await tryRpc("admin_messages_list",{},[])||[];
+  draw();
+  if(failed.length) alert("Sent to "+sent+". Not sent to:\n"+failed.join("\n"));
+}
 function pilotRows(){
   const q=S.q.toLowerCase(), air=S.pAir||"";
-  const rows=(S.pilots||[]).filter(p=>(!air || p.airline===air) && (!S.pNew || isNewPilot(p)) && (!q || [p.pilot,p.staff,p.airline,p.rank].join(" ").toLowerCase().indexOf(q)>=0))
+  const rows=(S.pilots||[]).filter(p=>(!air || p.airline===air) && (!S.pNew || isNewPilot(p)) && (!S.pLog || hasLogbook(p)) && (!q || [p.pilot,p.staff,p.airline,p.rank].join(" ").toLowerCase().indexOf(q)>=0))
     .map(p=>Object.assign({}, p, {_imp:lastImportOf(p.id), _on:(S.online||[]).some(o=>o.user_id===p.id && live(o))}));
   const k=S.pSort||"joined", dir=S.pDir===1?1:-1;   // newest joiner first; Activity says who is using it
   const val={name:p=>String(p.pilot||"").toLowerCase(), seen:p=>Date.parse(p.last_seen)||0, joined:p=>Date.parse(p.joined)||0, ver:p=>tagNum(p.app_tag),
@@ -729,7 +787,9 @@ function pilotsHtml(){
     <input type="search" placeholder="Name, staff number, rank" value="${esc(S.q)}" oninput="S.q=this.value;drawPilotsOnly()" aria-label="Find a pilot" style="flex:1;min-width:140px">
     ${(()=>{ const n=(S.pilots||[]).filter(isNewPilot).length;
       return `<button class="btn sm${S.pNew?" primary":""}" onclick="S.pNew=!S.pNew;if(S.pNew){S.pSort='joined';S.pDir=-1;}draw()" aria-pressed="${!!S.pNew}">New this week · ${num(n)}</button>`; })()}
+    <button class="btn sm${S.pLog?" primary":""}" onclick="S.pLog=!S.pLog;if(S.pLog){S.pSort='log';S.pDir=-1;}draw()" aria-pressed="${!!S.pLog}">Logbook · ${num((S.pilots||[]).filter(hasLogbook).length)}</button>
   </div>
+  ${S.pLog?logGroupMsgHtml():""}
   <div id="pilotsT">${pilotsTable(pilotRows())}</div>`;
 }
 function pSortBy(k){ if(S.pSort===k) S.pDir=S.pDir===1?-1:1; else { S.pSort=k; S.pDir=-1; } drawPilotsOnly(); }
@@ -748,7 +808,7 @@ function pilotsTable(rows){
       <td><span class="tag${tagNum(p.app_tag) && tagNum(p.app_tag)<newest?" warn":""}">${esc(vlabel(p.app_tag))}</span></td>
       <td class="num">${+p.months?num(p.months):`<span class="tag warn">none</span>`}</td>
       <td>${im?`<a href="#" onclick="event.stopPropagation();openImport(${im.report_id?+im.report_id:"null"},'${esc(im.user_id)}','${esc(im.month||"")}');return false">${esc(im.month||"?")}</a>
-          ${+im.blank_days?`<span class="tag warn">${num(im.blank_days)} unread</span>`:""}${+im.unknown?`<span class="tag bad">${num(im.unknown)} unknown</span>`:""}${!+im.blank_days&&!+im.unknown?`<span class="tag good">clean</span>`:""}
+          ${+im.blank_days?`<span class="tag warn">${num(im.blank_days)} unread</span>`:""}${+im.unknown?`<span class="tag bad" title="Open the pilot: the codes are listed at the top">${num(im.unknown)} unknown</span>`:""}${!+im.blank_days&&!+im.unknown?`<span class="tag good">clean</span>`:""}
           <br><span class="faint">${num(im.duties_out)} duties · ${ago(im.at)}</span>`:`<span class="faint">–</span>`}</td>
       <td class="num">${+p.log_entries?`<span class="tag good">yes</span><br><span class="faint">${num(p.log_entries)}</span>`:`<span class="faint">no</span>`}</td>
       <td class="num">${+p.errors_7d?`<span class="tag bad">${num(p.errors_7d)}</span>`:"–"}</td></tr>`; }).join("")}
@@ -924,10 +984,19 @@ function pilotMsgsHtml(uid){
     ${m.title?`<b>${esc(m.title)}</b><br>`:""}${esc(m.body).replace(/\n/g,"<br>")}${msgReplies(m)}</div>`).join("")}</div>`:"";
 }
 function msgsHtml(){
-  const list=(S.msgs||[]).filter(m=>!m.auto_key);         // the automatic ones are counted under Automatic follow-ups
+  const raw=(S.msgs||[]).filter(m=>!m.auto_key);           // the automatic ones are counted under Automatic follow-ups
+  /* The same words to several pilots within five minutes (the logbook group
+     message is one per pilot) is one entry: who it went to, read by how many,
+     every reply under it. */
+  const list=[]; raw.forEach(m=>{
+    const g=list.find(x=>x.to_user && m.to_user && x.body===m.body && (x.title||"")===(m.title||"") && Math.abs(Date.parse(x.created_at)-Date.parse(m.created_at))<300000);
+    if(g){ g._ids.push(+m.id); g._to.push(m.to_label); g.reads=(+g.reads||0)+(+m.reads||0); g.replies=(g.replies||[]).concat(m.replies||[]); }
+    else list.push(Object.assign({}, m, {_ids:[+m.id], _to:[m.to_label], replies:(m.replies||[]).slice()}));
+  });
+  list.forEach(g=>{ if(g._ids.length>1) g.to_label=g._to.length+" pilots: "+g._to.join(", "); });
   return msgComposeHtml("all","everyone")+(list.length?`<div class="scroll" style="max-height:520px">${list.map(m=>`<div class="msgi">
       <div class="row-form" style="margin:0;justify-content:space-between"><span><b>${esc(m.to_label)}</b> <span class="faint">· ${ago(m.created_at)} · read by ${num(m.reads)}${(m.replies||[]).length?" · "+num(m.replies.length)+" repl"+(m.replies.length===1?"y":"ies"):""}</span></span>
-        <button class="btn sm" onclick="deleteMsg(${+m.id})">Delete</button></div>
+        <button class="btn sm" onclick="deleteMsg('${m._ids.join(",")}')">Delete</button></div>
       ${m.title?`<b>${esc(m.title)}</b><br>`:""}<span class="muted">${esc(m.body).replace(/\n/g,"<br>")}</span>${msgReplies(m)}</div>`).join("")}</div>`:`<div class="empty">No messages sent yet.</div>`);
 }
 async function sendMsg(k){
@@ -942,10 +1011,11 @@ async function sendMsg(k){
     S.msgs=await tryRpc("admin_messages_list",{},[])||[]; draw(); }
   catch(e){ alert(/admin_message_send|PGRST202|does not exist/.test(e.message)?"Run SQL part 48 first.":"Couldn't send: "+e.message); }
 }
-async function deleteMsg(id){
-  if(!confirm("Delete this message? Pilots who haven't opened the app yet won't see it.")) return;
-  if(DEMO){ S.msgs=S.msgs.filter(m=>m.id!==id); draw(); return; }
-  try{ await rpc("admin_message_delete",{p_id:id}); S.msgs=await tryRpc("admin_messages_list",{},[])||[]; draw(); }catch(e){ alert(e.message); }
+async function deleteMsg(ids){
+  const list=String(ids).split(",").map(Number).filter(Boolean);
+  if(!confirm("Delete this message"+(list.length>1?" for all "+list.length+" pilots":"")+"? Pilots who haven't opened the app yet won't see it.")) return;
+  if(DEMO){ S.msgs=S.msgs.filter(m=>list.indexOf(+m.id)<0); draw(); return; }
+  try{ for(const id of list) await rpc("admin_message_delete",{p_id:id}); S.msgs=await tryRpc("admin_messages_list",{},[])||[]; draw(); }catch(e){ alert(e.message); }
 }
 
 /* The server labels a pilot as name + surname key, and the name already holds
@@ -1389,6 +1459,14 @@ RosterView`;
         <span class="faint" style="font-size:12px">Opens your own mail app with the message written; nothing is sent until you press Send.</span></div>`:""}`;
   }
   const mo=months[P.mi||0], duties=Array.isArray(mo.data)?mo.data:[];
+  /* EVERY CODE THE APP HAD NO NAME FOR, across all their months, at the top
+     (Alen, 17 Nov 2026: the list said "1 unknown" and finding SL2 meant paging
+     through months). Each date is a button to its month. */
+  const unkAll=[]; months.forEach((m,i)=>(Array.isArray(m.data)?m.data:[]).forEach(e=>{ if(e && e.type==="unknown" && String(e.date||"").slice(0,7)===m.month) unkAll.push({code:String(e.code||"?").toUpperCase(), date:String(e.date), mi:i}); }));
+  const unkBy={}; unkAll.sort((a,b)=>a.date.localeCompare(b.date)).forEach(u=>(unkBy[u.code] ||= []).push(u));
+  const unkStrip=unkAll.length ? `<div class="unkstrip"><b>Codes RosterView has no name for</b>${Object.keys(unkBy).map(code=>`<div class="unkrow">
+      <span class="tag bad">${esc(code)}</span>${unkBy[code].map(u=>`<button class="btn sm${u.mi===(P.mi||0)?" primary":""}" onclick="S.pilot.mi=${u.mi};drawSide()">${esc(dshort(u.date))}</button>`).join("")}
+      <button class="btn sm" onclick="nameFromImport('${esc((P.info||{}).airline||"")}','${esc(code)}')">Name it</button></div>`).join("")}</div>` : "";
   const y=+mo.month.slice(0,4), m=+mo.month.slice(5,7), days=new Date(y, m, 0).getDate(), first=(new Date(y, m-1, 1).getDay()+6)%7;
   const byDay={}; duties.forEach(e=>{ const d=String(e.date||""); if(d.slice(0,7)===mo.month) (byDay[+d.slice(8,10)] ||= []).push(e); });
   const unknown=[...new Set(duties.filter(e=>e.type==="unknown").map(e=>e.code).filter(Boolean))];
@@ -1407,7 +1485,7 @@ RosterView`;
     : rep.image ? `<img src="${esc(rep.image)}" alt="The roster page as their airline showed it">`
     : rep.snapshot ? `<iframe sandbox="" title="The roster page as captured" srcdoc="${esc(rep.snapshot)}"></iframe>`
     : `<div class="empty">No page in this import.</div>`;
-  return `<div class="rhd"><h2>Roster</h2>
+  return `${unkStrip}<div class="rhd"><h2>Roster</h2>
       <button class="btn sm" onclick="pilotMonth(1)"${(P.mi||0)>=months.length-1?" disabled":""}>‹ Older</button>
       <b class="rmo">${esc(new Date(y, m-1, 1).toLocaleDateString(undefined,{month:"long", year:"numeric"}))}</b>
       <button class="btn sm" onclick="pilotMonth(-1)"${(P.mi||0)<=0?" disabled":""}>Newer ›</button>
